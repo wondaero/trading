@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Flow - 실시간 주식 정보 대시보드</title>
+  <meta name="description" content="한국투자증권 API 및 Supabase 기반 실시간 주식 가격 및 장중 최고/최저가 시각적 모니터링 대시보드">
+  <!-- Google Fonts Outfit & Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Application Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo">
+          <i data-lucide="trending-up"></i>
+        </div>
+        <h1 class="brand-title">Stock Flow</h1>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="tab-btn active" data-tab="dashboard">
+          <i data-lucide="layout-dashboard"></i>실시간 시세
+        </button>
+        <button class="tab-btn" data-tab="watchlist">
+          <i data-lucide="star"></i>관심 주식
+        </button>
+        <button class="tab-btn" data-tab="calendar">
+          <i data-lucide="calendar"></i>배당/달력
+        </button>
+      </nav>
+
+      <!-- Settings and Actions -->
+      <div class="header-actions">
+        <span id="app-mode-badge" class="mode-badge">Supabase Mode</span>
+        <button id="open-settings-btn" class="settings-btn" title="API 설정">
+          <i data-lucide="settings"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Dashboard Section -->
+    <main id="tab-dashboard" class="dashboard-grid tab-content">
+      
+      <!-- Left Sidebar: Search & Quick Access -->
+      <section class="sidebar-panel">
+        
+        <!-- Search Widget -->
+        <div class="search-box">
+          <h2 class="panel-title">주식 종목 검색</h2>
+          <div class="search-input-wrapper">
+            <i data-lucide="search" class="search-icon"></i>
+            <input type="text" id="stock-search-input" class="search-input" placeholder="종목 코드(6자리) 또는 이름 입력..." autocomplete="off">
+            <!-- Autocomplete list -->
+            <div id="suggestions-container" class="suggestions-list"></div>
+          </div>
+        </div>
+
+        <!-- Quick Access List -->
+        <div class="quick-list-box">
+          <h2 class="panel-title">주요 인기 종목</h2>
+          <div id="quick-stocks-list" class="quick-stocks-list">
+            <!-- Populated dynamically by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Main Content Panel -->
+      <section class="main-content">
+        
+        <!-- Stock Details Card -->
+        <div id="stock-detail-card" class="stock-card">
+          <!-- Populated dynamically by JS -->
+          <div class="stock-card-loading">
+            <div class="spinner"></div>
+            <p style="color: var(--text-muted);">실시간 주식 시세를 가져오는 중...</p>
+          </div>
+        </div>
+
+        <!-- Price Chart Section -->
+        <div class="chart-box">
+          <div class="chart-header">
+            <h2 class="panel-title">
+              <i data-lucide="activity" style="display:inline; width:16px; height:16px; margin-right:6px; vertical-align:middle;"></i>당일 시세 트렌드
+            </h2>
+            <span class="chart-period">09:00 - 15:30</span>
+          </div>
+          
+          <div class="chart-canvas-wrapper">
+            <!-- Tooltip -->
+            <div id="chart-tooltip" class="chart-tooltip">
+              <div class="tooltip-time">10:30</div>
+              <div class="tooltip-price">78,500원</div>
+            </div>
+
+            <svg id="stock-chart-svg" class="chart-svg">
+              <defs>
+                <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.3"></stop>
+                  <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0.0"></stop>
+                </linearGradient>
+              </defs>
+              <!-- Grid and line groups created by JS -->
+              <g id="chart-grid-group"></g>
+              <path id="chart-area-path" class="chart-area-fill" d=""></path>
+              <path id="chart-line-path" class="chart-line" d=""></path>
+              <g id="chart-dots-group"></g>
+              <line id="chart-hover-line" class="chart-hover-line" x1="0" y1="0" x2="0" y2="0" style="display:none;"></line>
+            </svg>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- Watchlist Tab (Coming Soon) -->
+    <div id="tab-watchlist" class="coming-soon-panel tab-content" style="display: none;">
+      <div class="coming-soon-icon">
+        <i data-lucide="star" style="width: 32px; height: 32px;"></i>
+      </div>
+      <h2 class="coming-soon-title">관심 주식 등록</h2>
+      <p class="coming-soon-desc">자주 모니터링하는 주식을 추가하여 포트폴리오 형태로 실시간 추적하고 비교할 수 있는 대시보드가 준비 중입니다.</p>
+    </div>
+
+    <!-- Calendar Tab (Coming Soon) -->
+    <div id="tab-calendar" class="coming-soon-panel tab-content" style="display: none;">
+      <div class="coming-soon-icon">
+        <i data-lucide="calendar" style="width: 32px; height: 32px;"></i>
+      </div>
+      <h2 class="coming-soon-title">증시 일정 & 달력</h2>
+      <p class="coming-soon-desc">주요 기업들의 실적 발표일, 배당 락일, 선물 옵션 만기일 등 주요 금융 일정을 달력 형식으로 제공할 예정입니다.</p>
+    </div>
+
+  </div>
+
+  <!-- Settings Configuration Modal -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3 class="modal-title">API 설정</h3>
+        <button id="close-modal-btn" class="modal-close-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-subtitle" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:8px;">
+          호출에 필요한 프록시 API 주소 및 Supabase Anon Key를 설정합니다. 기본 URL로 연결되며, 에러 발생 시 변경 가능합니다.
+        </p>
+
+        <!-- API Endpoint URL -->
+        <div class="form-group">
+          <label for="settings-url-input">API 프록시 URL</label>
+          <input type="text" id="settings-url-input" class="form-input" placeholder="https://your-project.supabase.co/functions/v1/korea-invest-proxy">
+        </div>
+
+        <!-- Supabase Anon Key -->
+        <div class="form-group">
+          <label for="settings-key-input">Supabase Anon Key (필요시 입력)</label>
+          <input type="password" id="settings-key-input" class="form-input" placeholder="your-supabase-anon-key">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="cancel-settings-btn" class="btn btn-secondary">취소</button>
+        <button id="save-settings-btn" class="btn btn-primary">설정 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Main Application Script -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
