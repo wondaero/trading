@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local Project Ignored Folders & Files
+scratch/
+supabase/
+stocks.json

@@ -55,19 +55,22 @@
         <!-- Search Widget -->
         <div class="search-box">
           <h2 class="panel-title">주식 종목 검색</h2>
-          <div class="search-input-wrapper">
-            <i data-lucide="search" class="search-icon"></i>
-            <input type="text" id="stock-search-input" class="search-input" placeholder="종목 코드(6자리) 또는 이름 입력..." autocomplete="off">
-            <!-- Autocomplete list -->
-            <div id="suggestions-container" class="suggestions-list"></div>
-          </div>
-        </div>
-
-        <!-- Quick Access List -->
-        <div class="quick-list-box">
-          <h2 class="panel-title">주요 인기 종목</h2>
-          <div id="quick-stocks-list" class="quick-stocks-list">
-            <!-- Populated dynamically by JS -->
+          <div class="search-controls">
+            <div class="search-input-wrapper">
+              <i data-lucide="search" class="search-icon"></i>
+              <input type="text" id="stock-search-input" class="search-input" placeholder="종목 코드(6자리) 또는 이름 입력..." autocomplete="off">
+              <!-- Autocomplete list -->
+              <div id="suggestions-container" class="suggestions-list"></div>
+            </div>
+            <!-- Date Input -->
+            <div class="date-input-wrapper">
+              <i data-lucide="calendar" class="date-icon"></i>
+              <input type="date" id="stock-search-date" class="date-input">
+            </div>
+            <!-- Search Button -->
+            <button id="stock-search-submit-btn" class="btn btn-primary search-submit-btn">
+              <i data-lucide="search"></i>조회하기
+            </button>
           </div>
         </div>
       </section>
