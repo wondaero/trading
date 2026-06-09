@@ -8,22 +8,9 @@ const DEFAULT_SETTINGS = {
 
 let appSettings = { ...DEFAULT_SETTINGS };
 
-// Load settings from localStorage
+// Load settings (Fixed to production Edge Function url)
 const loadSettings = () => {
-    const stored = localStorage.getItem("trading_api_settings");
-    if (stored) {
-        try {
-            appSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-        } catch (e) {
-            console.error("Failed to parse settings", e);
-        }
-    }
-};
-
-// Save settings to localStorage
-const saveSettings = (newSettings) => {
-    appSettings = { ...appSettings, ...newSettings };
-    localStorage.setItem("trading_api_settings", JSON.stringify(appSettings));
+    appSettings = { ...DEFAULT_SETTINGS };
 };
 
 // Normalizes API response from Supabase Edge Function to StockInfo
@@ -180,6 +167,7 @@ const loadActiveStock = async (code) => {
     }
 };
 
+
 const loadLimitUpStocks = async () => {
     const cardContainer = document.getElementById("stock-detail-card");
     if (!cardContainer) return;
@@ -187,47 +175,29 @@ const loadLimitUpStocks = async () => {
     cardContainer.innerHTML = `
         <div class="stock-card-loading">
             <div class="spinner"></div>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">
-                오늘의 실시간 상한가 포착 정보를 연동 중입니다...
-            </p>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">오늘의 실시간 상한가 포착 정보를 연동 중입니다...</p>
         </div>
     `;
 
     try {
         const url = appSettings.apiUrl.trim();
-        if (!url) {
-            throw new Error("API 프록시 URL이 설정되어 있지 않습니다. 우측 상단 설정을 확인해주세요.");
-        }
-
         const separator = url.includes("?") ? "&" : "?";
         const fetchUrl = `${url}${separator}type=limitup`;
 
-        const headers = {};
-        if (appSettings.anonKey.trim()) {
-            headers["Authorization"] = `Bearer ${appSettings.anonKey.trim()}`;
-        }
-
-        const response = await fetch(fetchUrl, {
-            method: "GET",
-            headers: headers
-        });
-
+        const response = await fetch(fetchUrl);
         if (!response.ok) {
             const errText = await response.text();
             throw new Error(`상한가 조회 실패 (${response.status}): ${errText}`);
         }
 
         const result = await response.json();
-        if (result.error) {
-            throw new Error(result.error);
-        }
         if (result.status !== "success") {
-            throw new Error("상한가 목록 조회에 실패했습니다.");
+            throw new Error(result.error || "상한가 목록 조회 실패");
         }
 
         const stocksList = result.data || [];
         renderLimitUpList(stocksList);
-        
+
         // Remove active state from quick access list
         updateQuickListActiveState(null);
         currentActiveStock = null;
@@ -253,40 +223,33 @@ const renderLimitUpList = (stocks) => {
     // Reset card glow class
     cardContainer.className = "stock-card";
 
-    if (stocks.length === 0) {
+    if (!stocks || stocks.length === 0) {
         cardContainer.innerHTML = `
             <div class="stock-card-error" style="padding: 60px 20px;">
                 <div class="error-icon" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted);">
                     <i data-lucide="info"></i>
                 </div>
                 <h3 class="error-title" style="margin-top: 10px;">상한가 종목 없음</h3>
-                <p class="error-msg" style="max-width: 360px; line-height: 1.5;">
-                    현재 상한가에 도달한 국내 주식 종목이 없습니다.<br>
-                    (장 시작 전이거나 휴장일일 수 있습니다.)
+                <p class="error-msg" style="max-width: 360px; line-height: 1.5; color: var(--text-muted);">
+                    현재 상한가에 도달한 국내 주식 종목이 없습니다.<br>(장 시작 전이거나 휴장일일 수 있습니다.)
                 </p>
-                <div style="margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
-                    <button id="load-samsung-btn" class="btn btn-secondary btn-sm" style="font-size: 0.8rem;">삼성전자 보기</button>
-                    <button id="load-hynix-btn" class="btn btn-secondary btn-sm" style="font-size: 0.8rem;">SK하이닉스 보기</button>
-                </div>
             </div>
         `;
         lucide.createIcons();
-        document.getElementById("load-samsung-btn")?.addEventListener("click", () => loadActiveStock("005930"));
-        document.getElementById("load-hynix-btn")?.addEventListener("click", () => loadActiveStock("000660"));
         return;
     }
 
     const rowsHtml = stocks.map((stock, idx) => {
         const fullCode = stock.mksc_shrn_iscd || "";
         const code = fullCode.length > 6 ? fullCode.slice(-6) : fullCode;
-        
+
         const price = parseInt(stock.stck_prpr, 10).toLocaleString();
         const rate = parseFloat(stock.prdy_ctrt).toFixed(2);
         const volume = parseInt(stock.acml_vol, 10).toLocaleString();
         const marketBadge = code.startsWith("0") ? "KOSPI" : "KOSDAQ";
 
         return `
-            <tr class="limitup-row" data-code="${code}">
+            <tr class="limitup-row" data-code="${code}" style="cursor: pointer;">
                 <td style="width: 50px; text-align: center; color: var(--text-dimmed); font-weight: 600;">${idx + 1}</td>
                 <td class="stock-name-cell">
                     ${stock.hts_kor_isnm}
@@ -294,37 +257,42 @@ const renderLimitUpList = (stocks) => {
                 </td>
                 <td style="width: 80px; text-align: center;"><span class="badge" style="font-size: 0.7rem; background: rgba(108, 92, 231, 0.1); color: var(--color-accent); border: 1px solid rgba(108, 92, 231, 0.2);">${marketBadge}</span></td>
                 <td class="price-cell" style="text-align: right;">${price}원</td>
-                <td class="change-cell" style="text-align: right;">+${rate}%</td>
+                <td class="change-cell" style="text-align: right; color: var(--color-up); font-weight: 600;">+${rate}%</td>
                 <td class="volume-cell" style="text-align: right;">${volume}주</td>
             </tr>
         `;
     }).join("");
 
     cardContainer.innerHTML = `
-        <div class="limitup-container">
-            <div class="limitup-header">
+        <div class="limitup-container" style="padding: 20px;">
+            <div class="limitup-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <div>
-                    <h2 class="limitup-title">
+                    <h2 class="limitup-title" style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
                         <i data-lucide="trending-up" style="color: var(--color-up); width: 22px; height: 22px; vertical-align: middle;"></i>
                         오늘의 상한가 포착 종목
                     </h2>
-                    <span class="limitup-subtitle">실시간 거래소(KRX) 상한가 종목 집계</span>
+                    <span class="limitup-subtitle" style="font-size: 0.75rem; color: var(--text-muted);">실시간 거래소(KRX) 상한가 종목 집계</span>
                 </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">
-                    총 <strong style="color: var(--color-up);">${stocks.length}</strong>개 종목 포착
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        총 <strong style="color: var(--color-up);">${stocks.length}</strong>개
+                    </div>
+                    <button id="view-all-limitups-btn" class="btn btn-primary" style="font-size: 0.72rem; padding: 4px 10px; height: 28px; display: inline-flex; align-items: center; gap: 4px;">
+                        <i data-lucide="history" style="width: 12px; height: 12px;"></i>누적 이력 보기
+                    </button>
                 </div>
             </div>
             
-            <div class="limitup-table-wrapper">
-                <table class="limitup-table">
+            <div class="limitup-table-wrapper" style="overflow-x: auto;">
+                <table class="limitup-table" style="width: 100%; border-collapse: collapse;">
                     <thead>
-                        <tr>
-                            <th style="text-align: center;">순위</th>
-                            <th>종목명 / 코드</th>
-                            <th style="text-align: center;">시장</th>
-                            <th style="text-align: right;">현재가</th>
-                            <th style="text-align: right;">대비율</th>
-                            <th style="text-align: right;">거래량</th>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <th style="text-align: center; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">순위</th>
+                            <th style="text-align: left; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">종목명 / 코드</th>
+                            <th style="text-align: center; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">시장</th>
+                            <th style="text-align: right; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">현재가</th>
+                            <th style="text-align: right; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">대비율</th>
+                            <th style="text-align: right; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">거래량</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -342,6 +310,13 @@ const renderLimitUpList = (stocks) => {
             const code = row.dataset.code;
             loadActiveStock(code);
         });
+    });
+
+    document.getElementById("view-all-limitups-btn")?.addEventListener("click", () => {
+        const limitupsTabBtn = document.querySelector('.tab-btn[data-tab="limitups"]');
+        if (limitupsTabBtn) {
+            limitupsTabBtn.click();
+        }
     });
 };
 
@@ -646,8 +621,8 @@ const setupChartHoverInteractivity = (svg, getX, getY, history, historyTimes) =>
 // ==========================================
 // 4. Sidebar Shortcuts & Search
 // ==========================================
-const renderQuickStocksList = () => {};
-const updateQuickListActiveState = (activeCode) => {};
+const renderQuickStocksList = () => { };
+const updateQuickListActiveState = (activeCode) => { };
 
 // Fetch stock search results from proxy (GET request with search parameter)
 const fetchStockSearchResults = async (query) => {
@@ -719,9 +694,13 @@ const initSearchBox = () => {
             suggestionsBox.style.display = "none";
             loadActiveStock(val);
             searchInput.value = "";
-        } else if (!val && currentActiveStock) {
+        } else if (!val) {
             suggestionsBox.style.display = "none";
-            loadActiveStock(currentActiveStock.code);
+            if (currentActiveStock) {
+                loadActiveStock(currentActiveStock.code);
+            } else {
+                loadActiveStock("005930");
+            }
         } else {
             alert("올바른 종목 코드 6자리를 입력하거나, 검색 결과 드롭다운에서 선택해 주세요.");
         }
@@ -745,7 +724,7 @@ const initSearchBox = () => {
         }
 
         const query = searchInput.value.trim();
-        
+
         // Clear previous timer
         if (debounceTimer) {
             clearTimeout(debounceTimer);
@@ -761,9 +740,9 @@ const initSearchBox = () => {
         debounceTimer = setTimeout(async () => {
             console.log(`[SEARCH] 1초 경과하여 실시간 검색 실행: ${query}`);
             const results = await fetchStockSearchResults(query);
-            
+
             selectedSuggestionIndex = -1; // Reset selection index
-            
+
             if (results && results.length > 0) {
                 suggestionsBox.innerHTML = results.map(stock => `
                     <div class="suggestion-item" data-code="${stock.code}" data-name="${stock.name}">
@@ -818,15 +797,15 @@ const initSearchBox = () => {
                     e.preventDefault();
                     const code = selectedItem.dataset.code;
                     const name = selectedItem.dataset.name;
-                    
+
                     // Fill the input field and save code in data attribute
                     searchInput.value = name;
                     searchInput.dataset.code = code;
-                    
+
                     // Close suggestions and reset index
                     suggestionsBox.style.display = "none";
                     selectedSuggestionIndex = -1;
-                    
+
                     // Re-focus input
                     searchInput.focus();
                 }
@@ -897,54 +876,315 @@ const initNavigationTabs = () => {
 };
 
 // ==========================================
-// 6. Settings Modal Configuration
+// 6. Scheduler Monitor & Logs UI
 // ==========================================
-const initSettingsModal = () => {
-    const openBtn = document.getElementById("open-settings-btn");
-    const closeBtn = document.getElementById("close-modal-btn");
-    const cancelBtn = document.getElementById("cancel-settings-btn");
-    const saveBtn = document.getElementById("save-settings-btn");
-    const modalOverlay = document.getElementById("settings-modal");
+const loadSchedulerStatus = async () => {
+    const statusDot = document.getElementById("scheduler-status-dot");
+    const logsList = document.getElementById("scheduler-logs-list");
+    const refreshBtn = document.getElementById("refresh-logs-btn");
 
-    const urlInput = document.getElementById("settings-url-input");
-    const keyInput = document.getElementById("settings-key-input");
+    if (!statusDot || !logsList) return;
 
-    if (!openBtn || !modalOverlay) return;
+    if (refreshBtn) refreshBtn.classList.add("loading");
 
-    // Open modal and load current fields
-    openBtn.addEventListener("click", () => {
-        urlInput.value = appSettings.apiUrl;
-        keyInput.value = appSettings.anonKey;
-        modalOverlay.classList.add("active");
+    const url = appSettings.apiUrl;
+    const separator = url.includes("?") ? "&" : "?";
+    const fetchUrl = `${url}${separator}type=sync_logs`;
+
+    try {
+        const response = await fetch(fetchUrl);
+        if (!response.ok) throw new Error("API 통신 실패");
+        const result = await response.json();
+
+        if (result.status === "success" && result.data) {
+            const logs = result.data;
+            
+            // 1. Update Status Dot based on the latest log
+            if (logs.length > 0) {
+                const latest = logs[0];
+                statusDot.className = "status-dot";
+                if (latest.status === "SUCCESS") {
+                    statusDot.classList.add("success");
+                } else {
+                    statusDot.classList.add("failed");
+                }
+            } else {
+                statusDot.className = "status-dot unknown";
+            }
+
+            // 2. Render Logs List
+            if (logs.length === 0) {
+                logsList.innerHTML = `<div class="log-empty">수집된 로그 기록이 없습니다.</div>`;
+            } else {
+                logsList.innerHTML = logs.map(log => {
+                    const statusClass = log.status === "SUCCESS" ? "success" : "failed";
+                    const statusLabel = log.status === "SUCCESS" ? "성공" : "실패";
+                    const dateObj = new Date(log.created_at);
+                    const formattedTime = dateObj.toLocaleString('ko-KR', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    });
+
+                    return `
+                        <div class="log-item">
+                            <div class="log-item-header">
+                                <span class="log-status-badge ${statusClass}">${statusLabel}</span>
+                                <span class="log-time">${formattedTime}</span>
+                            </div>
+                            <div class="log-message">${log.message}</div>
+                        </div>
+                    `;
+                }).join("");
+            }
+        } else {
+            throw new Error("로그 분석 실패");
+        }
+    } catch (error) {
+        console.error("Failed to fetch scheduler logs:", error);
+        statusDot.className = "status-dot unknown";
+        logsList.innerHTML = `<div class="log-empty" style="color:var(--color-up); font-size:0.8rem;">로그를 로드하지 못했습니다.</div>`;
+    } finally {
+        if (refreshBtn) refreshBtn.classList.remove("loading");
+    }
+};
+
+const initSchedulerMonitor = () => {
+    const monitorContainer = document.getElementById("scheduler-monitor-container");
+    const statusBtn = document.getElementById("scheduler-status-btn");
+    const refreshBtn = document.getElementById("refresh-logs-btn");
+
+    if (!monitorContainer || !statusBtn) return;
+
+    // Toggle Dropdown Panel
+    statusBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        monitorContainer.classList.toggle("active");
+        if (monitorContainer.classList.contains("active")) {
+            loadSchedulerStatus();
+        }
     });
 
-    const closeModal = () => {
-        modalOverlay.classList.remove("active");
+    // Refresh Logs
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            loadSchedulerStatus();
+        });
+    }
+
+    // Close when clicking outside
+    document.addEventListener("click", (e) => {
+        if (!monitorContainer.contains(e.target)) {
+            monitorContainer.classList.remove("active");
+        }
+    });
+};
+
+// ==========================================
+// 6.5. Limitups Tab Controller
+// ==========================================
+// ==========================================
+// 6.5. Limitups Tab Controller (Accumulated Timeline)
+// ==========================================
+const initLimitUpsTab = () => {
+    const resultContainer = document.getElementById("limitups-result-container");
+    if (!resultContainer) return;
+
+    // Bind to the tab navigation button click to fetch data
+    const limitupsTabBtn = document.querySelector('.tab-btn[data-tab="limitups"]');
+    
+    const queryAllLimitUps = async () => {
+        resultContainer.innerHTML = `
+            <div class="stock-card-loading" style="padding: 60px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div class="spinner"></div>
+                <p style="color: var(--text-muted); margin-top: 12px;">누적 상한가 데이터를 불러오는 중...</p>
+            </div>
+        `;
+
+        // Reset styling in case it was modified before
+        resultContainer.style.background = "";
+        resultContainer.style.border = "";
+        resultContainer.style.boxShadow = "";
+        resultContainer.style.backdropFilter = "";
+
+        const url = appSettings.apiUrl;
+        const separator = url.includes("?") ? "&" : "?";
+        const fetchUrl = `${url}${separator}type=limitup&date=all`;
+
+        try {
+            const response = await fetch(fetchUrl);
+            if (!response.ok) throw new Error("API 통신에 실패했습니다.");
+            
+            const result = await response.json();
+            if (result.status !== "success") {
+                throw new Error(result.error || "데이터 조회 실패");
+            }
+
+            const stocks = result.data || [];
+            renderLimitUpsTimeline(stocks);
+        } catch (error) {
+            console.error(error);
+            resultContainer.style.background = "";
+            resultContainer.style.border = "";
+            resultContainer.style.boxShadow = "";
+            resultContainer.style.backdropFilter = "";
+            resultContainer.innerHTML = `
+                <div class="stock-card-error" style="padding: 40px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                    <div class="error-icon"><i data-lucide="alert-circle"></i></div>
+                    <h3 class="error-title">조회 실패</h3>
+                    <p class="error-msg">${error.message}</p>
+                    <button id="retry-all-limitups-btn" class="btn btn-secondary" style="margin-top:12px;">다시 시도</button>
+                </div>
+            `;
+            lucide.createIcons();
+            document.getElementById("retry-all-limitups-btn")?.addEventListener("click", queryAllLimitUps);
+        }
     };
 
-    closeBtn.addEventListener("click", closeModal);
-    cancelBtn.addEventListener("click", closeModal);
-    modalOverlay.addEventListener("click", (e) => {
-        if (e.target === modalOverlay) closeModal();
+    if (limitupsTabBtn) {
+        limitupsTabBtn.addEventListener("click", () => {
+            queryAllLimitUps();
+        });
+    }
+
+    // Fetch initially on load to prepare cache
+    queryAllLimitUps();
+};
+
+const formatDateStr = (dateStr) => {
+    if (!dateStr || dateStr.length !== 8) return dateStr || "";
+    const yyyy = dateStr.substring(0, 4);
+    const mm = dateStr.substring(4, 6);
+    const dd = dateStr.substring(6, 8);
+    
+    const dateObj = new Date(`${yyyy}-${mm}-${dd}`);
+    const week = ['일', '월', '화', '수', '목', '금', '토'];
+    const dayOfWeek = week[dateObj.getDay()] || '';
+    return `${yyyy}. ${mm}. ${dd} (${dayOfWeek})`;
+};
+
+const renderLimitUpsTimeline = (stocks) => {
+    const resultContainer = document.getElementById("limitups-result-container");
+    if (!resultContainer) return;
+
+    // Reset container default card backgrounds to allow flat timeline cards
+    resultContainer.style.background = "transparent";
+    resultContainer.style.border = "none";
+    resultContainer.style.boxShadow = "none";
+    resultContainer.style.backdropFilter = "none";
+
+    if (!stocks || stocks.length === 0) {
+        resultContainer.innerHTML = `
+            <div class="stock-card-error" style="padding: 60px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div class="error-icon" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%;">
+                    <i data-lucide="info"></i>
+                </div>
+                <h3 class="error-title" style="margin-top: 16px;">상한가 기록 없음</h3>
+                <p class="error-msg" style="max-width: 360px; line-height: 1.5; margin: 8px auto 0; color: var(--text-muted); font-size: 0.88rem;">
+                    데이터베이스에 누적 기록된 상한가 데이터가 없습니다.<br>
+                    (스케줄러 작동 기록을 확인해 주세요.)
+                </p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    // 1. Group stocks by date
+    const groups = {};
+    stocks.forEach(stock => {
+        const d = stock.date || "Unknown";
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(stock);
     });
 
-    // Save Config Fields
-    saveBtn.addEventListener("click", () => {
-        const apiUrl = urlInput.value.trim();
-        const anonKey = keyInput.value.trim();
+    // 2. Sort dates descending
+    const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
 
-        if (!apiUrl) {
-            alert("API 프록시 URL은 필수 항목입니다.");
-            return;
-        }
+    // 3. Build HTML
+    const timelineHtml = sortedDates.map(dateStr => {
+        const dateStocks = groups[dateStr];
+        const formattedDate = formatDateStr(dateStr);
 
-        saveSettings({ apiUrl, anonKey });
-        closeModal();
+        const rowsHtml = dateStocks.map((stock, idx) => {
+            const fullCode = stock.mksc_shrn_iscd || "";
+            const code = fullCode.length > 6 ? fullCode.slice(-6) : fullCode;
 
-        // Reload currently active stock under new configuration settings
-        if (currentActiveStock) {
-            loadActiveStock(currentActiveStock.code);
-        }
+            const price = parseInt(stock.stck_prpr, 10).toLocaleString();
+            const rate = parseFloat(stock.prdy_ctrt).toFixed(2);
+            const volume = parseInt(stock.acml_vol, 10).toLocaleString();
+            const marketBadge = code.startsWith("0") ? "KOSPI" : "KOSDAQ";
+
+            return `
+                <tr class="limitup-row" data-code="${code}" style="cursor: pointer;">
+                    <td style="width: 50px; text-align: center; color: var(--text-dimmed); font-weight: 600;">${idx + 1}</td>
+                    <td class="stock-name-cell">
+                        ${stock.hts_kor_isnm}
+                        <span class="stock-code-badge">${code}</span>
+                    </td>
+                    <td style="width: 80px; text-align: center;">
+                        <span class="badge" style="font-size: 0.7rem; background: rgba(108, 92, 231, 0.1); color: var(--color-accent); border: 1px solid rgba(108, 92, 231, 0.2);">${marketBadge}</span>
+                    </td>
+                    <td class="price-cell" style="text-align: right;">${price}원</td>
+                    <td class="change-cell" style="text-align: right; color: var(--color-up); font-weight: 600;">+${rate}%</td>
+                    <td class="volume-cell" style="text-align: right;">${volume}주</td>
+                </tr>
+            `;
+        }).join("");
+
+        return `
+            <div class="timeline-section">
+                <div class="timeline-date-header">
+                    <h3 class="timeline-date-title">
+                        <i data-lucide="calendar" style="color: var(--color-accent); width: 18px; height: 18px;"></i>
+                        ${formattedDate}
+                    </h3>
+                    <span class="timeline-count-badge">
+                        상한가 종목 수: <strong style="color: var(--color-up);">${dateStocks.length}</strong>개
+                    </span>
+                </div>
+                
+                <div class="limitups-table-wrapper" style="overflow-x: auto;">
+                    <table class="limitup-table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <th style="text-align: center; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">순위</th>
+                                <th style="text-align: left; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">종목명 / 코드</th>
+                                <th style="text-align: center; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">시장</th>
+                                <th style="text-align: right; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">현재가</th>
+                                <th style="text-align: right; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">대비율</th>
+                                <th style="text-align: right; padding: 10px; color: var(--text-muted); font-size: 0.8rem;">거래량</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    resultContainer.innerHTML = timelineHtml;
+    lucide.createIcons();
+
+    // Attach click listeners to return to Main with active stock loaded
+    resultContainer.querySelectorAll(".limitup-row").forEach(row => {
+        row.addEventListener("click", () => {
+            const code = row.dataset.code;
+            
+            // Switch active tab to dashboard (Main)
+            const dashTabBtn = document.querySelector('.tab-btn[data-tab="dashboard"]');
+            if (dashTabBtn) {
+                dashTabBtn.click();
+            }
+
+            // Load stock in dashboard
+            loadActiveStock(code);
+        });
     });
 };
 
@@ -968,9 +1208,11 @@ document.addEventListener("DOMContentLoaded", () => {
     renderQuickStocksList();
     initSearchBox();
     initNavigationTabs();
-    initSettingsModal();
+    initSchedulerMonitor();
+    loadSchedulerStatus();
+    initLimitUpsTab();
 
-    // Load limit up stocks list by default on startup
+    // Load daily limit up stocks list by default on startup
     loadLimitUpStocks();
 });
 

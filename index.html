@@ -27,22 +27,37 @@
       <!-- Navigation Tabs -->
       <nav class="nav-tabs">
         <button class="tab-btn active" data-tab="dashboard">
-          <i data-lucide="layout-dashboard"></i>실시간 시세
+          <i data-lucide="layout-dashboard"></i>메인
         </button>
-        <button class="tab-btn" data-tab="watchlist">
-          <i data-lucide="star"></i>관심 주식
-        </button>
-        <button class="tab-btn" data-tab="calendar">
-          <i data-lucide="calendar"></i>배당/달력
+        <button class="tab-btn" data-tab="limitups">
+          <i data-lucide="list-ordered"></i>상한가 리스트
         </button>
       </nav>
-
       <!-- Settings and Actions -->
       <div class="header-actions">
         <span id="app-mode-badge" class="mode-badge">Supabase Mode</span>
-        <button id="open-settings-btn" class="settings-btn" title="API 설정">
-          <i data-lucide="settings"></i>
-        </button>
+        
+        <!-- Scheduler Logs Monitor Dropdown -->
+        <div class="scheduler-monitor" id="scheduler-monitor-container">
+          <button id="scheduler-status-btn" class="scheduler-status-btn" title="스케줄러 수집 상태">
+            <span id="scheduler-status-dot" class="status-dot"></span>
+            <span class="status-text">수집 상태</span>
+            <i data-lucide="chevron-down" class="chevron-icon"></i>
+          </button>
+          
+          <!-- Dropdown log panel -->
+          <div class="scheduler-dropdown" id="scheduler-dropdown-menu">
+            <div class="dropdown-header">
+              <h4>수집 로그 (최근 5건)</h4>
+              <button id="refresh-logs-btn" class="refresh-logs-btn" title="새로고침">
+                <i data-lucide="refresh-cw"></i>
+              </button>
+            </div>
+            <div class="dropdown-body" id="scheduler-logs-list">
+              <div class="log-loading">로그를 불러오는 중...</div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -123,60 +138,33 @@
       </section>
     </main>
 
-    <!-- Watchlist Tab (Coming Soon) -->
-    <div id="tab-watchlist" class="coming-soon-panel tab-content" style="display: none;">
-      <div class="coming-soon-icon">
-        <i data-lucide="star" style="width: 32px; height: 32px;"></i>
+    <!-- Limitups Tab -->
+    <div id="tab-limitups" class="tab-content" style="display: none; flex-direction: column; gap: 20px; width: 100%;">
+      <!-- Limitups Header Box -->
+      <div class="limitups-header-box" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 16px 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); backdrop-filter: blur(20px); flex-wrap: wrap; gap: 16px;">
+        <div class="limitups-header-title">
+          <h2 class="panel-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="history" style="color: var(--color-up); width: 22px; height: 22px;"></i>
+            상한가 누적 히스토리 (날짜별)
+          </h2>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-muted);">
+          매일 장마감 후 자동으로 아카이빙된 누적 상한가 종목 목록입니다.
+        </div>
       </div>
-      <h2 class="coming-soon-title">관심 주식 등록</h2>
-      <p class="coming-soon-desc">자주 모니터링하는 주식을 추가하여 포트폴리오 형태로 실시간 추적하고 비교할 수 있는 대시보드가 준비 중입니다.</p>
-    </div>
-
-    <!-- Calendar Tab (Coming Soon) -->
-    <div id="tab-calendar" class="coming-soon-panel tab-content" style="display: none;">
-      <div class="coming-soon-icon">
-        <i data-lucide="calendar" style="width: 32px; height: 32px;"></i>
+      
+      <!-- Limitups List Result Container -->
+      <div id="limitups-result-container" class="stock-card" style="min-height: 200px; padding: 0;">
+        <div class="stock-card-loading" style="padding: 60px 20px; text-align: center;">
+          <div class="spinner"></div>
+          <p style="color: var(--text-muted); margin-top: 12px;">누적 상한가 데이터를 불러오는 중...</p>
+        </div>
       </div>
-      <h2 class="coming-soon-title">증시 일정 & 달력</h2>
-      <p class="coming-soon-desc">주요 기업들의 실적 발표일, 배당 락일, 선물 옵션 만기일 등 주요 금융 일정을 달력 형식으로 제공할 예정입니다.</p>
     </div>
 
   </div>
 
-  <!-- Settings Configuration Modal -->
-  <div id="settings-modal" class="modal-overlay">
-    <div class="modal-window">
-      <div class="modal-header">
-        <h3 class="modal-title">API 설정</h3>
-        <button id="close-modal-btn" class="modal-close-btn">
-          <i data-lucide="x"></i>
-        </button>
-      </div>
 
-      <div class="modal-body">
-        <p class="modal-subtitle" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:8px;">
-          호출에 필요한 프록시 API 주소 및 Supabase Anon Key를 설정합니다. 기본 URL로 연결되며, 에러 발생 시 변경 가능합니다.
-        </p>
-
-        <!-- API Endpoint URL -->
-        <div class="form-group">
-          <label for="settings-url-input">API 프록시 URL</label>
-          <input type="text" id="settings-url-input" class="form-input" placeholder="https://your-project.supabase.co/functions/v1/korea-invest-proxy">
-        </div>
-
-        <!-- Supabase Anon Key -->
-        <div class="form-group">
-          <label for="settings-key-input">Supabase Anon Key (필요시 입력)</label>
-          <input type="password" id="settings-key-input" class="form-input" placeholder="your-supabase-anon-key">
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button id="cancel-settings-btn" class="btn btn-secondary">취소</button>
-        <button id="save-settings-btn" class="btn btn-primary">설정 저장</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
