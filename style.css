@@ -272,6 +272,7 @@ input {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .search-icon {
@@ -311,6 +312,7 @@ input {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .date-icon {

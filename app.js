@@ -240,7 +240,7 @@ const renderLimitUpList = (stocks) => {
     }
 
     const rowsHtml = stocks.map((stock, idx) => {
-        const fullCode = stock.mksc_shrn_iscd || "";
+        const fullCode = stock.mksc_shrn_iscd || stock.stck_shrn_iscd || stock.code || "";
         const code = fullCode.length > 6 ? fullCode.slice(-6) : fullCode;
 
         const price = parseInt(stock.stck_prpr, 10).toLocaleString();
@@ -1110,7 +1110,7 @@ const renderLimitUpsTimeline = (stocks) => {
         const formattedDate = formatDateStr(dateStr);
 
         const rowsHtml = dateStocks.map((stock, idx) => {
-            const fullCode = stock.mksc_shrn_iscd || "";
+            const fullCode = stock.mksc_shrn_iscd || stock.stck_shrn_iscd || stock.code || "";
             const code = fullCode.length > 6 ? fullCode.slice(-6) : fullCode;
 
             const price = parseInt(stock.stck_prpr, 10).toLocaleString();
