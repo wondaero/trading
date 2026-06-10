@@ -175,7 +175,7 @@ const loadLimitUpStocks = async () => {
     cardContainer.innerHTML = `
         <div class="stock-card-loading">
             <div class="spinner"></div>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">오늘의 실시간 상한가 포착 정보를 연동 중입니다...</p>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">오늘의 실시간 급등주(20% 이상) 포착 정보를 연동 중입니다...</p>
         </div>
     `;
 
@@ -187,12 +187,12 @@ const loadLimitUpStocks = async () => {
         const response = await fetch(fetchUrl);
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(`상한가 조회 실패 (${response.status}): ${errText}`);
+            throw new Error(`급등주 조회 실패 (${response.status}): ${errText}`);
         }
 
         const result = await response.json();
         if (result.status !== "success") {
-            throw new Error(result.error || "상한가 목록 조회 실패");
+            throw new Error(result.error || "급등주 목록 조회 실패");
         }
 
         const stocksList = result.data || [];
@@ -229,9 +229,9 @@ const renderLimitUpList = (stocks) => {
                 <div class="error-icon" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted);">
                     <i data-lucide="info"></i>
                 </div>
-                <h3 class="error-title" style="margin-top: 10px;">상한가 종목 없음</h3>
+                <h3 class="error-title" style="margin-top: 10px;">급등 종목 없음</h3>
                 <p class="error-msg" style="max-width: 360px; line-height: 1.5; color: var(--text-muted);">
-                    현재 상한가에 도달한 국내 주식 종목이 없습니다.<br>(장 시작 전이거나 휴장일일 수 있습니다.)
+                    현재 20% 이상 급등한 국내 주식 종목이 없습니다.<br>(장 시작 전이거나 휴장일일 수 있습니다.)
                 </p>
             </div>
         `;
@@ -269,9 +269,9 @@ const renderLimitUpList = (stocks) => {
                 <div>
                     <h2 class="limitup-title" style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
                         <i data-lucide="trending-up" style="color: var(--color-up); width: 22px; height: 22px; vertical-align: middle;"></i>
-                        오늘의 상한가 포착 종목
+                        오늘의 급등 종목 (20% 이상)
                     </h2>
-                    <span class="limitup-subtitle" style="font-size: 0.75rem; color: var(--text-muted);">실시간 거래소(KRX) 상한가 종목 집계</span>
+                    <span class="limitup-subtitle" style="font-size: 0.75rem; color: var(--text-muted);">실시간 거래소(KRX) 당일 급등 종목 집계</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <div style="font-size: 0.75rem; color: var(--text-muted);">
@@ -356,7 +356,7 @@ const renderStockCard = (stock) => {
     <!-- Back Navigation Bar -->
     <div class="detail-back-bar">
       <button id="go-to-limitup-btn" class="limitup-back-btn">
-        <i data-lucide="arrow-left"></i>상한가 목록
+        <i data-lucide="arrow-left"></i>급등주 목록
       </button>
     </div>
 
@@ -1000,7 +1000,7 @@ const initLimitUpsTab = () => {
         resultContainer.innerHTML = `
             <div class="stock-card-loading" style="padding: 60px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
                 <div class="spinner"></div>
-                <p style="color: var(--text-muted); margin-top: 12px;">누적 상한가 데이터를 불러오는 중...</p>
+                <p style="color: var(--text-muted); margin-top: 12px;">누적 급등주 데이터를 불러오는 중...</p>
             </div>
         `;
 
@@ -1082,9 +1082,9 @@ const renderLimitUpsTimeline = (stocks) => {
                 <div class="error-icon" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%;">
                     <i data-lucide="info"></i>
                 </div>
-                <h3 class="error-title" style="margin-top: 16px;">상한가 기록 없음</h3>
+                <h3 class="error-title" style="margin-top: 16px;">급등주 기록 없음</h3>
                 <p class="error-msg" style="max-width: 360px; line-height: 1.5; margin: 8px auto 0; color: var(--text-muted); font-size: 0.88rem;">
-                    데이터베이스에 누적 기록된 상한가 데이터가 없습니다.<br>
+                    데이터베이스에 누적 기록된 급등주 데이터가 없습니다.<br>
                     (스케줄러 작동 기록을 확인해 주세요.)
                 </p>
             </div>
@@ -1143,7 +1143,7 @@ const renderLimitUpsTimeline = (stocks) => {
                         ${formattedDate}
                     </h3>
                     <span class="timeline-count-badge">
-                        상한가 종목 수: <strong style="color: var(--color-up);">${dateStocks.length}</strong>개
+                        급등 종목 수: <strong style="color: var(--color-up);">${dateStocks.length}</strong>개
                     </span>
                 </div>
                 
