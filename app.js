@@ -739,6 +739,16 @@ const initSearchBox = () => {
         // Set 1-second debounce timer (1000ms)
         debounceTimer = setTimeout(async () => {
             console.log(`[SEARCH] 1초 경과하여 실시간 검색 실행: ${query}`);
+            
+            // Show Loading Spinner/Text during API search
+            suggestionsBox.innerHTML = `
+                <div style="padding: 12px 16px; color: var(--text-muted); font-size: 0.85rem; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <div class="spinner-mini" style="width: 14px; height: 14px; border: 2px solid rgba(255, 255, 255, 0.1); border-top: 2px solid var(--color-accent); border-radius: 50%; animation: spin 0.85s linear infinite;"></div>
+                    검색 중...
+                </div>
+            `;
+            suggestionsBox.style.display = "block";
+
             const results = await fetchStockSearchResults(query);
 
             selectedSuggestionIndex = -1; // Reset selection index
