@@ -1575,3 +1575,20 @@ input {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+/* Analysis Tab Specific Styles */
+.analysis-header-box,
+.analysis-filters-box {
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+.filter-pct-btn {
+  transition: var(--transition-fast);
+}
+
+.filter-pct-btn.active {
+  background: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px var(--color-accent-glow);
+}

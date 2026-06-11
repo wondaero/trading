@@ -1199,6 +1199,271 @@ const renderLimitUpsTimeline = (stocks) => {
 };
 
 // ==========================================
+// 6.6. Analysis Tab Controller (Gemini Pro CSV Export)
+// ==========================================
+let allAnalysisData = []; // DB로부터 가져온 모든 가공되지 않은 분석 로우들
+
+const initAnalysisTab = () => {
+    const resultContainer = document.getElementById("analysis-result-container");
+    const refSelect = document.getElementById("analysis-ref-select");
+    const pctInput = document.getElementById("analysis-pct-input");
+    const pctBtns = document.querySelectorAll(".filter-pct-btn");
+    const exportBtn = document.getElementById("analysis-export-btn");
+    const analysisTabBtn = document.querySelector('.tab-btn[data-tab="analysis"]');
+
+    if (!resultContainer) return;
+
+    let activeFilterPct = 0; // 현재 선택된 비율 필터 (0 = 전체)
+
+    const queryGainerResults = async () => {
+        resultContainer.innerHTML = `
+            <div class="stock-card-loading" style="padding: 60px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div class="spinner"></div>
+                <p style="color: var(--text-muted); margin-top: 12px;">분석 데이터를 불러오는 중...</p>
+            </div>
+        `;
+
+        const url = appSettings.apiUrl;
+        const separator = url.includes("?") ? "&" : "?";
+        const fetchUrl = `${url}${separator}type=gainer_results`;
+
+        try {
+            const response = await fetch(fetchUrl);
+            if (!response.ok) throw new Error("API 통신에 실패했습니다.");
+            const result = await response.json();
+            if (result.status !== "success") {
+                throw new Error(result.error || "데이터 조회 실패");
+            }
+
+            allAnalysisData = result.data || [];
+            applyFiltersAndRender();
+        } catch (error) {
+            console.error(error);
+            resultContainer.innerHTML = `
+                <div class="stock-card-error" style="padding: 40px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                    <div class="error-icon"><i data-lucide="alert-circle"></i></div>
+                    <h3 class="error-title">조회 실패</h3>
+                    <p class="error-msg">${error.message}</p>
+                    <button id="retry-analysis-btn" class="btn btn-secondary" style="margin-top:12px;">다시 시도</button>
+                </div>
+            `;
+            lucide.createIcons();
+            document.getElementById("retry-analysis-btn")?.addEventListener("click", queryGainerResults);
+        }
+    };
+
+    // 필터링 및 렌더링 함수
+    const applyFiltersAndRender = () => {
+        const refType = refSelect.value; // 'open' (시가대비) or 'close' (전일종가대비)
+        const threshold = parseFloat(pctInput.value) || activeFilterPct;
+
+        // 필터링 적용
+        const filtered = allAnalysisData.filter(row => {
+            const open = parseFloat(row.open_price) || 0;
+            const high = parseFloat(row.high_price) || 0;
+            const prevClose = parseFloat(row.prev_close_price) || 0;
+
+            if (open <= 0 || prevClose <= 0) return false;
+
+            let rate = 0;
+            if (refType === "open") {
+                rate = ((high - open) / open) * 100;
+            } else {
+                rate = ((high - prevClose) / prevClose) * 100;
+            }
+
+            return rate >= threshold;
+        });
+
+        renderAnalysisTable(filtered, refType);
+    };
+
+    // 테이블 렌더링
+    const renderAnalysisTable = (data, refType) => {
+        if (!data || data.length === 0) {
+            resultContainer.innerHTML = `
+                <div class="stock-card-error" style="padding: 60px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); border:none;">
+                    <div class="error-icon" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%;">
+                        <i data-lucide="info"></i>
+                    </div>
+                    <h3 class="error-title" style="margin-top: 16px;">조건 만족 종목 없음</h3>
+                    <p class="error-msg" style="max-width: 360px; line-height: 1.5; margin: 8px auto 0; color: var(--text-muted); font-size: 0.88rem;">
+                        현재 선택하신 필터링 조건에 부합하는 분석 데이터가 존재하지 않습니다.
+                    </p>
+                </div>
+            `;
+            lucide.createIcons();
+            return;
+        }
+
+        // HTML 테이블 구조 생성
+        const tableRows = data.map((row, idx) => {
+            const fullCode = row.code || "";
+            const code = fullCode.length > 6 ? fullCode.slice(-6) : fullCode;
+            const formattedDate = formatDateStr(row.date);
+            const open = Math.round(row.open_price).toLocaleString();
+            const high = Math.round(row.high_price).toLocaleString();
+            const close = Math.round(row.close_price).toLocaleString();
+            const prevClose = Math.round(row.prev_close_price).toLocaleString();
+            const volume = Math.round(row.volume).toLocaleString();
+
+            // 계산값들
+            const openToHighRate = (((row.high_price - row.open_price) / row.open_price) * 100).toFixed(2);
+            const closeToHighRate = (((row.high_price - row.prev_close_price) / row.prev_close_price) * 100).toFixed(2);
+
+            // 현재 선택한 기준에 해당하는 상승률 강조 컬러
+            const openRateHtml = `<span style="font-weight:600; color:${parseFloat(openToHighRate) >= 5 ? 'var(--color-up)' : 'var(--text-main)'}">+${openToHighRate}%</span>`;
+            const closeRateHtml = `<span style="font-weight:600; color:${parseFloat(closeToHighRate) >= 5 ? 'var(--color-up)' : 'var(--text-main)'}">+${closeToHighRate}%</span>`;
+
+            return `
+                <tr class="limitup-row" data-code="${code}" style="cursor: pointer;">
+                    <td style="text-align: center; color: var(--text-dimmed); font-size: 0.82rem;">${formattedDate}</td>
+                    <td class="stock-name-cell">
+                        ${row.name}
+                        <span class="stock-code-badge">${code}</span>
+                    </td>
+                    <td style="text-align: right; color: var(--text-muted);">${prevClose}원</td>
+                    <td style="text-align: right; color: var(--text-muted);">${open}원</td>
+                    <td style="text-align: right; color: var(--text-main); font-weight:500;">${high}원</td>
+                    <td style="text-align: right; color: var(--text-muted);">${close}원</td>
+                    <td style="text-align: center;">${openRateHtml}</td>
+                    <td style="text-align: center;">${closeRateHtml}</td>
+                    <td style="text-align: right; font-size: 0.8rem; color: var(--text-dimmed);">${volume}주</td>
+                </tr>
+            `;
+        }).join("");
+
+        resultContainer.innerHTML = `
+            <div class="limitup-container" style="padding: 0;">
+                <div class="limitup-table-wrapper" style="overflow-x: auto;">
+                    <table class="limitup-table" style="width: 100%; border-collapse: collapse;">
+                      <thead>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                          <th style="text-align: center; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">날짜</th>
+                          <th style="text-align: left; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">종목명</th>
+                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">전일 종가</th>
+                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">오늘 시가</th>
+                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">오늘 고가</th>
+                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">오늘 종가</th>
+                          <th style="text-align: center; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">시가대비 고가</th>
+                          <th style="text-align: center; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">전일비 고가</th>
+                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">거래량</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${tableRows}
+                      </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        lucide.createIcons();
+
+        // Row click handler to load stock chart
+        resultContainer.querySelectorAll(".limitup-row").forEach(row => {
+            row.addEventListener("click", () => {
+                const code = row.dataset.code;
+                const dashTabBtn = document.querySelector('.tab-btn[data-tab="dashboard"]');
+                if (dashTabBtn) dashTabBtn.click();
+                loadActiveStock(code);
+            });
+        });
+    };
+
+    // CSV (엑셀) 내보내기 구현
+    const exportToCSV = () => {
+        const refType = refSelect.value;
+        const threshold = parseFloat(pctInput.value) || activeFilterPct;
+
+        // 현재 필터링된 데이터 구하기
+        const filtered = allAnalysisData.filter(row => {
+            const open = parseFloat(row.open_price) || 0;
+            const high = parseFloat(row.high_price) || 0;
+            const prevClose = parseFloat(row.prev_close_price) || 0;
+            if (open <= 0 || prevClose <= 0) return false;
+            let rate = 0;
+            if (refType === "open") {
+                rate = ((high - open) / open) * 100;
+            } else {
+                rate = ((high - prevClose) / prevClose) * 100;
+            }
+            return rate >= threshold;
+        });
+
+        if (filtered.length === 0) {
+            alert("다운로드할 데이터가 없습니다.");
+            return;
+        }
+
+        // CSV 헤더 설정
+        const headers = ["날짜", "종목코드", "종목명", "전일종가", "오늘시가", "오늘고가", "오늘종가", "시가대비고가비율(%)", "전일종가대비고가비율(%)", "오늘거래량"];
+        
+        // CSV 로우 설정
+        const csvRows = [
+            "\uFEFF" + headers.join(","), // UTF-8 BOM 추가하여 한글 깨짐 방지
+            ...filtered.map(row => {
+                const openToHigh = (((row.high_price - row.open_price) / row.open_price) * 100).toFixed(2);
+                const closeToHigh = (((row.high_price - row.prev_close_price) / row.prev_close_price) * 100).toFixed(2);
+                
+                return [
+                    row.date,
+                    `"${row.code}"`, // 종목코드 자릿수 유지를 위한 텍스트 처리
+                    `"${row.name.replace(/"/g, '""')}"`, // 쉼표 대비 처리
+                    Math.round(row.prev_close_price),
+                    Math.round(row.open_price),
+                    Math.round(row.high_price),
+                    Math.round(row.close_price),
+                    openToHigh,
+                    closeToHigh,
+                    Math.round(row.volume)
+                ].join(",");
+            })
+        ];
+
+        const csvString = csvRows.join("\n");
+        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        
+        const todayStr = new Date().toISOString().substring(0, 10).replace(/-/g, "");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `gainer_analysis_results_${todayStr}.csv`);
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // 이벤트 리스너 바인딩
+    refSelect.addEventListener("change", applyFiltersAndRender);
+    
+    pctInput.addEventListener("input", () => {
+        // 커스텀 입력 시 퀵 버튼의 active 해제
+        pctBtns.forEach(btn => btn.classList.remove("active"));
+        applyFiltersAndRender();
+    });
+
+    pctBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            pctBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            activeFilterPct = parseFloat(btn.dataset.pct);
+            pctInput.value = ""; // 커스텀 입력창 비우기
+            applyFiltersAndRender();
+        });
+    });
+
+    exportBtn.addEventListener("click", exportToCSV);
+
+    if (analysisTabBtn) {
+        analysisTabBtn.addEventListener("click", () => {
+            queryGainerResults();
+        });
+    }
+};
+
+// ==========================================
 // 7. Core Initialization
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
@@ -1221,6 +1486,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initSchedulerMonitor();
     loadSchedulerStatus();
     initLimitUpsTab();
+    initAnalysisTab();
 
     // Load daily limit up stocks list by default on startup
     loadLimitUpStocks();
