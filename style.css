@@ -200,7 +200,7 @@ input {
 /* Dashboard Grid Layout */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 1.6fr 1fr;
   gap: 24px;
 }
 
@@ -211,6 +211,7 @@ input {
     width: 100%;
   }
   .sidebar-panel,
+  .analysis-panel,
   .main-content {
     min-width: 0;
     width: 100%;
@@ -249,8 +250,9 @@ input {
   }
 }
 
-/* Left Sidebar Panel */
-.sidebar-panel {
+/* Left Sidebar Panel & Analysis Panel */
+.sidebar-panel,
+.analysis-panel {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -1089,6 +1091,17 @@ input {
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* Active state for selected table rows */
+.limitup-table tr.limitup-row.active-row,
+.limitup-table tr.main-analysis-row.active-row {
+  background: rgba(108, 92, 231, 0.12);
+}
+
+.limitup-table tr.limitup-row.active-row .stock-name-cell,
+.limitup-table tr.main-analysis-row.active-row .stock-name-cell {
+  color: var(--color-accent);
+}
+
 .limitup-row .stock-name-cell {
   font-weight: 600;
   color: var(--text-main);
@@ -1591,4 +1604,53 @@ input {
   border-color: var(--color-accent) !important;
   color: #ffffff !important;
   box-shadow: 0 4px 12px var(--color-accent-glow);
+}
+
+/* Recently Searched Chips */
+#search-history-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.history-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.history-chip:hover {
+  background: rgba(108, 92, 231, 0.15);
+  border-color: rgba(108, 92, 231, 0.3);
+  color: var(--color-accent);
+}
+
+.history-chip .delete-chip-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  transition: var(--transition-fast);
+}
+
+.history-chip .delete-chip-btn:hover {
+  background: rgba(255, 71, 87, 0.2);
+  color: var(--color-up);
 }

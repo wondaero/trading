@@ -148,6 +148,7 @@ const loadActiveStock = async (code) => {
         renderStockCard(stockInfo);
         renderPriceChart(stockInfo);
         updateQuickListActiveState(stockInfo.code);
+        updateMainAnalysisActiveState(stockInfo.code);
     } catch (error) {
         console.error(error);
         cardContainer.innerHTML = `
@@ -623,6 +624,16 @@ const setupChartHoverInteractivity = (svg, getX, getY, history, historyTimes) =>
 // ==========================================
 const renderQuickStocksList = () => { };
 const updateQuickListActiveState = (activeCode) => { };
+const updateMainAnalysisActiveState = (activeCode) => {
+    const mainRows = document.querySelectorAll(".main-analysis-row");
+    mainRows.forEach(row => {
+        if (row.dataset.code === activeCode) {
+            row.classList.add("active-row");
+        } else {
+            row.classList.remove("active-row");
+        }
+    });
+};
 
 // Fetch stock search results from proxy (GET request with search parameter)
 const fetchStockSearchResults = async (query) => {
@@ -877,9 +888,11 @@ const initNavigationTabs = () => {
                 }
             });
 
-            // Force SVG chart redraw when returning to dashboard
+            // Force SVG chart redraw when returning to dashboard or search
             if (tabId === "dashboard" && currentActiveStock) {
                 setTimeout(() => renderPriceChart(currentActiveStock), 50);
+            } else if (tabId === "search" && currentSearchActiveStock) {
+                setTimeout(() => renderSearchPriceChart(currentSearchActiveStock), 50);
             }
         });
     });
@@ -1199,25 +1212,627 @@ const renderLimitUpsTimeline = (stocks) => {
 };
 
 // ==========================================
-// 6.6. Analysis Tab Controller (Gemini Pro CSV Export)
+// 6.6. Search Tab Controller & History Manager
 // ==========================================
-let allAnalysisData = []; // DB로부터 가져온 모든 가공되지 않은 분석 로우들
+let currentSearchActiveStock = null;
 
-const initAnalysisTab = () => {
-    const resultContainer = document.getElementById("analysis-result-container");
-    const refSelect = document.getElementById("analysis-ref-select");
-    const pctInput = document.getElementById("analysis-pct-input");
-    const pctBtns = document.querySelectorAll(".filter-pct-btn");
-    const exportBtn = document.getElementById("analysis-export-btn");
-    const analysisTabBtn = document.querySelector('.tab-btn[data-tab="analysis"]');
+const renderSearchStockCard = (stock) => {
+    const cardContainer = document.getElementById("search-detail-card");
+    if (!cardContainer) return;
+
+    const changePrice = stock.price - stock.prevClose;
+    const changePercent = (changePrice / stock.prevClose) * 100;
+
+    let changeClass = "color-steady";
+    let signText = "";
+    let arrowIcon = "";
+
+    if (changePrice > 0) {
+        changeClass = "color-up";
+        signText = "+";
+        arrowIcon = `<i data-lucide="trending-up" style="display:inline; width:16px; height:16px; vertical-align:middle; margin-right:4px;"></i>`;
+    } else if (changePrice < 0) {
+        changeClass = "color-down";
+        signText = "";
+        arrowIcon = `<i data-lucide="trending-down" style="display:inline; width:16px; height:16px; vertical-align:middle; margin-right:4px;"></i>`;
+    }
+
+    let sliderPercent = 50;
+    if (stock.high !== stock.low) {
+        sliderPercent = ((stock.price - stock.low) / (stock.high - stock.low)) * 100;
+        sliderPercent = Math.max(0, Math.min(100, sliderPercent));
+    }
+
+    const cardTrendClass = changePrice > 0 ? "up" : changePrice < 0 ? "down" : "";
+    cardContainer.className = `stock-card ${cardTrendClass}`;
+
+    cardContainer.innerHTML = `
+    <div class="card-top-section" style="padding-top: 10px;">
+      <div class="stock-identity">
+        <div class="stock-title-row">
+          <h2 class="stock-name-title">${stock.name}</h2>
+          <span class="stock-code-badge">${stock.code}</span>
+        </div>
+        <span class="stock-market-badge">한국거래소(KRX) | ${stock.code.startsWith("0") ? "KOSPI" : "KOSDAQ"}</span>
+      </div>
+      
+      <div class="stock-price-row">
+        <div class="price-current">${stock.price.toLocaleString()}원</div>
+        <div class="price-change-wrapper ${changeClass}">
+          ${arrowIcon}
+          <span>${signText}${changePrice.toLocaleString()}원 (${signText}${changePercent.toFixed(2)}%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Range Slider Indicator -->
+    <div class="range-indicator-section">
+      <div class="range-labels">
+        <div class="range-label-item">
+          <span class="range-title">장중 최저가</span>
+          <span class="range-price low">${stock.low.toLocaleString()}원</span>
+        </div>
+        <div class="range-label-item right">
+          <span class="range-title">장중 최고가</span>
+          <span class="range-price high">${stock.high.toLocaleString()}원</span>
+        </div>
+      </div>
+      
+      <div class="range-track-container">
+        <div class="range-track-fill"></div>
+        <div class="range-pointer" style="left: ${sliderPercent}%;"></div>
+      </div>
+      
+      <div style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-top:-6px;">
+        현재가는 금일 고저 변동폭의 하위 <strong>${sliderPercent.toFixed(0)}%</strong> 지점에 위치하고 있습니다.
+      </div>
+    </div>
+
+    <!-- Additional Market Details -->
+    <div class="details-grid">
+      <div class="detail-item">
+        <span class="detail-label">시가</span>
+        <span class="detail-value">${stock.open.toLocaleString()}원</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">전일 종가</span>
+        <span class="detail-value">${stock.prevClose.toLocaleString()}원</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">당일 거래량</span>
+        <span class="detail-value">${stock.volume.toLocaleString()}주</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">대금 규모</span>
+        <span class="detail-value">${stock.marketCap}</span>
+      </div>
+    </div>
+  `;
+
+    lucide.createIcons();
+};
+
+const renderSearchPriceChart = (stock) => {
+    const svg = document.getElementById("search-chart-svg");
+    const gridGroup = document.getElementById("search-chart-grid-group");
+    const areaPath = document.getElementById("search-chart-area-path");
+    const linePath = document.getElementById("search-chart-line-path");
+    const dotsGroup = document.getElementById("search-chart-dots-group");
+
+    if (!svg || !stock.history || stock.history.length === 0) return;
+
+    gridGroup.innerHTML = "";
+    dotsGroup.innerHTML = "";
+
+    const width = svg.clientWidth || 600;
+    const height = svg.clientHeight || 280;
+    const padding = { top: 20, right: 30, bottom: 25, left: 10 };
+
+    const history = stock.history;
+    const maxPrice = Math.max(...history);
+    const minPrice = Math.min(...history);
+    const priceRange = maxPrice - minPrice || 100;
+
+    const getX = (index) => padding.left + (index / (history.length - 1)) * (width - padding.left - padding.right);
+    const getY = (val) => {
+        const ratio = (val - minPrice) / priceRange;
+        return height - padding.bottom - ratio * (height - padding.top - padding.bottom);
+    };
+
+    const gridCount = 4;
+    for (let i = 0; i <= gridCount; i++) {
+        const ratio = i / gridCount;
+        const priceVal = minPrice + ratio * priceRange;
+        const y = getY(priceVal);
+
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", padding.left);
+        line.setAttribute("y1", y);
+        line.setAttribute("x2", width - padding.right);
+        line.setAttribute("y2", y);
+        line.setAttribute("class", "chart-grid-line");
+        gridGroup.appendChild(line);
+
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", width - padding.right + 6);
+        text.setAttribute("y", y + 4);
+        text.setAttribute("fill", "var(--text-dimmed)");
+        text.setAttribute("font-size", "9px");
+        text.setAttribute("font-family", "var(--font-primary)");
+        text.innerText = Math.round(priceVal).toLocaleString();
+        gridGroup.appendChild(text);
+    }
+
+    let dLine = "";
+    let dArea = "";
+
+    history.forEach((val, idx) => {
+        const x = getX(idx);
+        const y = getY(val);
+
+        if (idx === 0) {
+            dLine = `M ${x} ${y}`;
+            dArea = `M ${x} ${height - padding.bottom} L ${x} ${y}`;
+        } else {
+            dLine += ` L ${x} ${y}`;
+            dArea += ` L ${x} ${y}`;
+        }
+
+        if (idx === history.length - 1) {
+            dArea += ` L ${x} ${height - padding.bottom} Z`;
+        }
+
+        const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        dot.setAttribute("cx", x);
+        dot.setAttribute("cy", y);
+        dot.setAttribute("r", "3.5");
+        dot.setAttribute("fill", "var(--color-accent)");
+        dot.setAttribute("stroke", "var(--bg-secondary)");
+        dot.setAttribute("stroke-width", "1.5");
+        dot.setAttribute("style", "opacity: 0; transition: opacity var(--transition-fast); cursor: pointer;");
+        dot.dataset.price = val;
+        dot.dataset.time = stock.historyTimes ? stock.historyTimes[idx] : getFormattedTimeForIndex(idx, history.length);
+        dot.dataset.index = idx;
+        dotsGroup.appendChild(dot);
+    });
+
+    linePath.setAttribute("d", dLine);
+    areaPath.setAttribute("d", dArea);
+
+    const isUp = (stock.price - stock.prevClose) >= 0;
+    svg.style.setProperty("--color-accent", isUp ? "var(--color-up)" : "var(--color-down-kr)");
+
+    setupSearchChartHoverInteractivity(svg, getX, getY, history, stock.historyTimes || []);
+};
+
+const setupSearchChartHoverInteractivity = (svg, getX, getY, history, historyTimes) => {
+    const tooltip = document.getElementById("search-chart-tooltip");
+    const hoverLine = document.getElementById("search-chart-hover-line");
+    const dots = svg.querySelectorAll("#search-chart-dots-group circle");
+
+    if (!tooltip || !hoverLine) return;
+
+    const handlePointerMove = (e) => {
+        const rect = svg.getBoundingClientRect();
+        const xMouse = e.clientX - rect.left;
+
+        let closestIndex = 0;
+        let minDiff = Infinity;
+
+        history.forEach((_, idx) => {
+            const xPos = getX(idx);
+            const diff = Math.abs(xMouse - xPos);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestIndex = idx;
+            }
+        });
+
+        const val = history[closestIndex];
+        const xVal = getX(closestIndex);
+        const yVal = getY(val);
+
+        hoverLine.setAttribute("x1", xVal);
+        hoverLine.setAttribute("y1", 0);
+        hoverLine.setAttribute("x2", xVal);
+        hoverLine.setAttribute("y2", svg.clientHeight - 25);
+        hoverLine.style.display = "block";
+
+        dots.forEach((dot, idx) => {
+            if (idx === closestIndex) {
+                dot.style.opacity = "1";
+                dot.setAttribute("r", "5.5");
+            } else {
+                dot.style.opacity = "0";
+                dot.setAttribute("r", "3.5");
+            }
+        });
+
+        tooltip.querySelector(".tooltip-time").innerText = historyTimes[closestIndex] || getFormattedTimeForIndex(closestIndex, history.length);
+        tooltip.querySelector(".tooltip-price").innerText = `${val.toLocaleString()}원`;
+
+        tooltip.style.display = "block";
+        tooltip.style.left = `${xVal - tooltip.clientWidth / 2}px`;
+        tooltip.style.top = `${yVal - tooltip.clientHeight - 12}px`;
+    };
+
+    const handlePointerLeave = () => {
+        hoverLine.style.display = "none";
+        tooltip.style.display = "none";
+        dots.forEach(dot => {
+            dot.style.opacity = "0";
+            dot.setAttribute("r", "3.5");
+        });
+    };
+
+    svg.addEventListener("mousemove", handlePointerMove);
+    svg.addEventListener("mouseleave", handlePointerLeave);
+};
+
+const loadSearchActiveStock = async (code) => {
+    const cardContainer = document.getElementById("search-detail-card");
+    if (!cardContainer) return;
+
+    cardContainer.innerHTML = `
+    <div class="stock-card-loading" style="padding: 100px 20px;">
+      <div class="spinner"></div>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        한국투자증권 API로부터 1분봉 시세를 연동 중입니다...<br>
+        <span style="font-size:0.75rem; color:var(--text-dimmed); display:block; margin-top:6px;">초당 거래건수 우회 대기 적용 (약 10~15초 소요)</span>
+      </p>
+    </div>
+  `;
+
+    try {
+        const stockInfo = await fetchSearchStockData(code);
+        currentSearchActiveStock = stockInfo;
+        renderSearchStockCard(stockInfo);
+        renderSearchPriceChart(stockInfo);
+        
+        // Add to history
+        addSearchHistory(stockInfo.code, stockInfo.name);
+    } catch (error) {
+        console.error(error);
+        cardContainer.innerHTML = `
+      <div class="stock-card-error" style="padding: 60px 20px;">
+        <div class="error-icon"><i data-lucide="alert-circle"></i></div>
+        <h3 class="error-title">조회 실패</h3>
+        <p class="error-msg">${error.message}</p>
+        <button id="retry-search-stock-btn" class="btn btn-secondary" style="margin-top:8px;">다시 시도</button>
+      </div>
+    `;
+        lucide.createIcons();
+
+        document.getElementById("retry-search-stock-btn")?.addEventListener("click", () => {
+            loadSearchActiveStock(code);
+        });
+    }
+};
+
+const fetchSearchStockData = async (code) => {
+    const url = appSettings.apiUrl.trim();
+    if (!url) {
+        throw new Error("API 프록시 URL이 설정되어 있지 않습니다.");
+    }
+
+    let dateStr = "";
+    const dateInput = document.getElementById("search-tab-date");
+    if (dateInput && dateInput.value) {
+        dateStr = dateInput.value.replace(/-/g, "");
+    }
+
+    const separator = url.includes("?") ? "&" : "?";
+    let fetchUrl = `${url}${separator}code=${code}`;
+    if (dateStr) {
+        fetchUrl += `&date=${dateStr}`;
+    }
+
+    const headers = {};
+    if (appSettings.anonKey.trim()) {
+        headers["Authorization"] = `Bearer ${appSettings.anonKey.trim()}`;
+    }
+
+    const response = await fetch(fetchUrl, {
+        method: "GET",
+        headers: headers
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API 통신 실패 (${response.status}): ${errText}`);
+    }
+
+    const result = await response.json();
+    if (result.error) {
+        throw new Error(result.error);
+    }
+    if (result.status !== "success") {
+        throw new Error("데이터 조회에 실패했습니다.");
+    }
+
+    return adaptKoreaInvestData(code, result);
+};
+
+const initSearchTabBox = () => {
+    const searchInput = document.getElementById("search-tab-input");
+    const suggestionsBox = document.getElementById("search-suggestions-container");
+    const searchBtn = document.getElementById("search-tab-submit-btn");
+    if (!searchInput || !suggestionsBox) return;
+
+    let debounceTimer = null;
+    let selectedSuggestionIndex = -1;
+
+    const updateHighlight = (items) => {
+        items.forEach((item, idx) => {
+            if (idx === selectedSuggestionIndex) {
+                item.classList.add("selected");
+                item.scrollIntoView({ block: "nearest" });
+            } else {
+                item.classList.remove("selected");
+            }
+        });
+    };
+
+    const performSearch = () => {
+        const val = searchInput.value.trim();
+        const savedCode = searchInput.dataset.code;
+
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+
+        if (savedCode) {
+            suggestionsBox.style.display = "none";
+            loadSearchActiveStock(savedCode);
+            searchInput.value = "";
+            searchInput.removeAttribute("data-code");
+        } else if (val.length === 6 && !isNaN(val)) {
+            suggestionsBox.style.display = "none";
+            loadSearchActiveStock(val);
+            searchInput.value = "";
+        } else {
+            alert("올바른 종목 코드 6자리를 입력하거나, 검색 결과 드롭다운에서 선택해 주세요.");
+        }
+    };
+
+    if (searchBtn) {
+        searchBtn.addEventListener("click", performSearch);
+    }
+
+    searchInput.addEventListener("input", () => {
+        searchInput.removeAttribute("data-code");
+    });
+
+    searchInput.addEventListener("keyup", (e) => {
+        if (["Enter", "ArrowUp", "ArrowDown", "Escape"].includes(e.key)) {
+            return;
+        }
+
+        const query = searchInput.value.trim();
+
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+
+        if (!query) {
+            suggestionsBox.style.display = "none";
+            selectedSuggestionIndex = -1;
+            return;
+        }
+
+        debounceTimer = setTimeout(async () => {
+            suggestionsBox.innerHTML = `
+                <div style="padding: 12px 16px; color: var(--text-muted); font-size: 0.85rem; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <div class="spinner-mini" style="width: 14px; height: 14px; border: 2px solid rgba(255, 255, 255, 0.1); border-top: 2px solid var(--color-accent); border-radius: 50%; animation: spin 0.85s linear infinite;"></div>
+                    검색 중...
+                </div>
+            `;
+            suggestionsBox.style.display = "block";
+
+            const results = await fetchStockSearchResults(query);
+
+            selectedSuggestionIndex = -1;
+
+            if (results && results.length > 0) {
+                suggestionsBox.innerHTML = results.map(stock => `
+                    <div class="suggestion-item" data-code="${stock.code}" data-name="${stock.name}">
+                        <span class="stock-name">${stock.name}</span>
+                        <span class="stock-code">${stock.code}</span>
+                    </div>
+                `).join("");
+                suggestionsBox.style.display = "block";
+            } else {
+                suggestionsBox.innerHTML = `
+                    <div style="padding: 12px 16px; color: var(--text-muted); font-size: 0.85rem; text-align: center;">
+                        검색 결과가 없습니다.
+                    </div>
+                `;
+                suggestionsBox.style.display = "block";
+            }
+        }, 1000);
+    });
+
+    searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            suggestionsBox.style.display = "none";
+            selectedSuggestionIndex = -1;
+        } else if (e.key === "ArrowDown") {
+            if (suggestionsBox.style.display === "block") {
+                const items = suggestionsBox.querySelectorAll(".suggestion-item");
+                if (items.length > 0) {
+                    e.preventDefault();
+                    selectedSuggestionIndex = (selectedSuggestionIndex + 1) % items.length;
+                    updateHighlight(items);
+                }
+            }
+        } else if (e.key === "ArrowUp") {
+            if (suggestionsBox.style.display === "block") {
+                const items = suggestionsBox.querySelectorAll(".suggestion-item");
+                if (items.length > 0) {
+                    e.preventDefault();
+                    if (selectedSuggestionIndex <= 0) {
+                        selectedSuggestionIndex = items.length - 1;
+                    } else {
+                        selectedSuggestionIndex--;
+                    }
+                    updateHighlight(items);
+                }
+            }
+        } else if (e.key === "Enter") {
+            if (suggestionsBox.style.display === "block" && selectedSuggestionIndex !== -1) {
+                const items = suggestionsBox.querySelectorAll(".suggestion-item");
+                const selectedItem = items[selectedSuggestionIndex];
+                if (selectedItem) {
+                    e.preventDefault();
+                    const code = selectedItem.dataset.code;
+                    const name = selectedItem.dataset.name;
+
+                    searchInput.value = name;
+                    searchInput.dataset.code = code;
+
+                    suggestionsBox.style.display = "none";
+                    selectedSuggestionIndex = -1;
+                    searchInput.focus();
+                }
+            } else {
+                e.preventDefault();
+                performSearch();
+            }
+        }
+    });
+
+    suggestionsBox.addEventListener("click", (e) => {
+        const item = e.target.closest(".suggestion-item");
+        if (!item) return;
+
+        const code = item.dataset.code;
+        searchInput.value = "";
+        searchInput.removeAttribute("data-code");
+        suggestionsBox.style.display = "none";
+        selectedSuggestionIndex = -1;
+        loadSearchActiveStock(code);
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+            suggestionsBox.style.display = "none";
+            selectedSuggestionIndex = -1;
+        }
+    });
+};
+
+const HISTORY_KEY = "stock_search_history";
+
+const loadSearchHistory = () => {
+    try {
+        const data = localStorage.getItem(HISTORY_KEY);
+        return data ? JSON.parse(data) : [];
+    } catch (e) {
+        console.error("Failed to load search history", e);
+        return [];
+    }
+};
+
+const addSearchHistory = (code, name) => {
+    let history = loadSearchHistory();
+    history = history.filter(item => item.code !== code);
+    history.unshift({ code, name });
+    if (history.length > 10) {
+        history = history.slice(0, 10);
+    }
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    renderSearchHistory();
+};
+
+const removeSearchHistory = (code) => {
+    let history = loadSearchHistory();
+    history = history.filter(item => item.code !== code);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    renderSearchHistory();
+};
+
+const clearAllSearchHistory = () => {
+    localStorage.removeItem(HISTORY_KEY);
+    renderSearchHistory();
+};
+
+const renderSearchHistory = () => {
+    const historyBox = document.getElementById("search-history-box");
+    const chipsContainer = document.getElementById("search-history-chips");
+
+    if (!historyBox || !chipsContainer) return;
+
+    const history = loadSearchHistory();
+
+    if (history.length === 0) {
+        historyBox.style.display = "none";
+        chipsContainer.innerHTML = "";
+        return;
+    }
+
+    historyBox.style.display = "flex";
+    chipsContainer.innerHTML = history.map(item => `
+        <div class="history-chip" data-code="${item.code}">
+            <span>${item.name}</span>
+            <span style="font-size: 0.7rem; color: var(--text-dimmed); margin-left: 2px;">${item.code}</span>
+            <button class="delete-chip-btn" data-code="${item.code}">&times;</button>
+        </div>
+    `).join("");
+
+    chipsContainer.querySelectorAll(".history-chip").forEach(chip => {
+        chip.addEventListener("click", (e) => {
+            if (e.target.classList.contains("delete-chip-btn")) {
+                e.stopPropagation();
+                const code = e.target.dataset.code;
+                removeSearchHistory(code);
+                return;
+            }
+            const code = chip.dataset.code;
+            loadSearchActiveStock(code);
+        });
+    });
+};
+
+const initSearchTab = () => {
+    initSearchTabBox();
+    renderSearchHistory();
+    
+    const clearBtn = document.getElementById("clear-all-history-btn");
+    if (clearBtn) {
+        clearBtn.addEventListener("click", clearAllSearchHistory);
+    }
+    
+    // Set default search date
+    const dateInput = document.getElementById("search-tab-date");
+    if (dateInput) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+    }
+};
+
+// ==========================================
+// 6.7. Main Tab Analysis Widget
+// ==========================================
+let mainAnalysisData = [];
+let hasLoadedInitialStock = false;
+
+const initMainAnalysisWidget = () => {
+    const resultContainer = document.getElementById("main-analysis-result-container");
+    const refSelect = document.getElementById("main-analysis-ref-select");
+    const pctInput = document.getElementById("main-analysis-pct-input");
+    const pctBtns = document.querySelectorAll(".main-filter-pct-btn");
+    const exportBtn = document.getElementById("main-analysis-export-btn");
 
     if (!resultContainer) return;
 
-    let activeFilterPct = 0; // 현재 선택된 비율 필터 (0 = 전체)
+    let activeFilterPct = 0;
 
-    const queryGainerResults = async () => {
+    const queryMainGainerResults = async () => {
         resultContainer.innerHTML = `
-            <div class="stock-card-loading" style="padding: 60px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+            <div class="stock-card-loading" style="padding: 40px 20px; text-align: center;">
                 <div class="spinner"></div>
                 <p style="color: var(--text-muted); margin-top: 12px;">분석 데이터를 불러오는 중...</p>
             </div>
@@ -1235,30 +1850,54 @@ const initAnalysisTab = () => {
                 throw new Error(result.error || "데이터 조회 실패");
             }
 
-            allAnalysisData = result.data || [];
+            mainAnalysisData = result.data || [];
             applyFiltersAndRender();
         } catch (error) {
             console.error(error);
             resultContainer.innerHTML = `
-                <div class="stock-card-error" style="padding: 40px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div class="stock-card-error" style="padding: 30px 20px; text-align: center;">
                     <div class="error-icon"><i data-lucide="alert-circle"></i></div>
-                    <h3 class="error-title">조회 실패</h3>
-                    <p class="error-msg">${error.message}</p>
-                    <button id="retry-analysis-btn" class="btn btn-secondary" style="margin-top:12px;">다시 시도</button>
+                    <h3 class="error-title" style="font-size: 1rem;">조회 실패</h3>
+                    <p class="error-msg" style="font-size: 0.8rem;">${error.message}</p>
+                    <button id="retry-main-analysis-btn" class="btn btn-secondary" style="margin-top:10px; font-size: 0.75rem; padding: 4px 10px;">다시 시도</button>
                 </div>
             `;
             lucide.createIcons();
-            document.getElementById("retry-analysis-btn")?.addEventListener("click", queryGainerResults);
+            document.getElementById("retry-main-analysis-btn")?.addEventListener("click", queryMainGainerResults);
         }
     };
 
-    // 필터링 및 렌더링 함수
     const applyFiltersAndRender = () => {
-        const refType = refSelect.value; // 'open' (시가대비) or 'close' (전일종가대비)
+        if (mainAnalysisData.length === 0) {
+            resultContainer.innerHTML = `
+                <div class="stock-card-error" style="padding: 40px 20px; text-align: center;">
+                    <div class="error-icon"><i data-lucide="info"></i></div>
+                    <h3 class="error-title" style="font-size:1rem; margin-top: 8px;">데이터 없음</h3>
+                    <p class="error-msg" style="font-size:0.8rem; color: var(--text-muted);">
+                        수집된 분석 데이터가 없습니다.<br>16:30 장마감 이후 최초 수집이 실행됩니다.
+                    </p>
+                </div>
+            `;
+            lucide.createIcons();
+            if (!hasLoadedInitialStock) {
+                loadActiveStock("005930");
+                hasLoadedInitialStock = true;
+            }
+            return;
+        }
+
+        // 1. Find the latest date
+        const dates = [...new Set(mainAnalysisData.map(row => row.date))].sort((a, b) => b.localeCompare(a));
+        const latestDate = dates[0];
+        
+        // 2. Filter for latest date
+        const latestDayData = mainAnalysisData.filter(row => row.date === latestDate);
+
+        // 3. Apply percentage filters
+        const refType = refSelect.value;
         const threshold = parseFloat(pctInput.value) || activeFilterPct;
 
-        // 필터링 적용
-        const filtered = allAnalysisData.filter(row => {
+        const filtered = latestDayData.filter(row => {
             const open = parseFloat(row.open_price) || 0;
             const high = parseFloat(row.high_price) || 0;
             const prevClose = parseFloat(row.prev_close_price) || 0;
@@ -1275,20 +1914,19 @@ const initAnalysisTab = () => {
             return rate >= threshold;
         });
 
-        renderAnalysisTable(filtered, refType);
+        renderTable(filtered, refType, latestDate);
     };
 
-    // 테이블 렌더링
-    const renderAnalysisTable = (data, refType) => {
+    const renderTable = (data, refType, dateStr) => {
         if (!data || data.length === 0) {
             resultContainer.innerHTML = `
-                <div class="stock-card-error" style="padding: 60px 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); border:none;">
-                    <div class="error-icon" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%;">
+                <div class="stock-card-error" style="padding: 40px 20px; text-align: center;">
+                    <div class="error-icon" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%;">
                         <i data-lucide="info"></i>
                     </div>
-                    <h3 class="error-title" style="margin-top: 16px;">조건 만족 종목 없음</h3>
-                    <p class="error-msg" style="max-width: 360px; line-height: 1.5; margin: 8px auto 0; color: var(--text-muted); font-size: 0.88rem;">
-                        현재 선택하신 필터링 조건에 부합하는 분석 데이터가 존재하지 않습니다.
+                    <h3 class="error-title" style="font-size: 0.95rem; margin-top: 10px;">조건 만족 종목 없음</h3>
+                    <p class="error-msg" style="font-size:0.8rem; color: var(--text-muted);">
+                        조건에 부합하는 종목이 없습니다. (기준 날짜: ${formatDateStr(dateStr)})
                     </p>
                 </div>
             `;
@@ -1296,58 +1934,55 @@ const initAnalysisTab = () => {
             return;
         }
 
-        // HTML 테이블 구조 생성
         const tableRows = data.map((row, idx) => {
             const fullCode = row.code || "";
             const code = fullCode.length > 6 ? fullCode.slice(-6) : fullCode;
-            const formattedDate = formatDateStr(row.date);
             const open = Math.round(row.open_price).toLocaleString();
             const high = Math.round(row.high_price).toLocaleString();
-            const close = Math.round(row.close_price).toLocaleString();
             const prevClose = Math.round(row.prev_close_price).toLocaleString();
             const volume = Math.round(row.volume).toLocaleString();
 
-            // 계산값들
             const openToHighRate = (((row.high_price - row.open_price) / row.open_price) * 100).toFixed(2);
             const closeToHighRate = (((row.high_price - row.prev_close_price) / row.prev_close_price) * 100).toFixed(2);
 
-            // 현재 선택한 기준에 해당하는 상승률 강조 컬러
             const openRateHtml = `<span style="font-weight:600; color:${parseFloat(openToHighRate) >= 5 ? 'var(--color-up)' : 'var(--text-main)'}">+${openToHighRate}%</span>`;
             const closeRateHtml = `<span style="font-weight:600; color:${parseFloat(closeToHighRate) >= 5 ? 'var(--color-up)' : 'var(--text-main)'}">+${closeToHighRate}%</span>`;
 
+            const isActive = currentActiveStock && currentActiveStock.code === code ? "active-row" : "";
+
             return `
-                <tr class="limitup-row" data-code="${code}" style="cursor: pointer;">
-                    <td style="text-align: center; color: var(--text-dimmed); font-size: 0.82rem;">${formattedDate}</td>
-                    <td class="stock-name-cell">
+                <tr class="main-analysis-row ${isActive}" data-code="${code}" style="cursor: pointer;">
+                    <td style="text-align: center; color: var(--text-dimmed); font-size: 0.78rem; font-weight:600;">${idx + 1}</td>
+                    <td class="stock-name-cell" style="font-size: 0.82rem; font-weight:500;">
                         ${row.name}
-                        <span class="stock-code-badge">${code}</span>
+                        <span class="stock-code-badge" style="font-size:0.7rem; padding: 1px 4px;">${code}</span>
                     </td>
-                    <td style="text-align: right; color: var(--text-muted);">${prevClose}원</td>
-                    <td style="text-align: right; color: var(--text-muted);">${open}원</td>
-                    <td style="text-align: right; color: var(--text-main); font-weight:500;">${high}원</td>
-                    <td style="text-align: right; color: var(--text-muted);">${close}원</td>
-                    <td style="text-align: center;">${openRateHtml}</td>
-                    <td style="text-align: center;">${closeRateHtml}</td>
-                    <td style="text-align: right; font-size: 0.8rem; color: var(--text-dimmed);">${volume}주</td>
+                    <td style="text-align: right; color: var(--text-muted); font-size:0.8rem;">${prevClose}</td>
+                    <td style="text-align: right; color: var(--text-main); font-size:0.8rem; font-weight:500;">${high}</td>
+                    <td style="text-align: center; font-size:0.8rem;">${openRateHtml}</td>
+                    <td style="text-align: center; font-size:0.8rem;">${closeRateHtml}</td>
+                    <td style="text-align: right; font-size: 0.75rem; color: var(--text-dimmed);">${volume}</td>
                 </tr>
             `;
         }).join("");
 
         resultContainer.innerHTML = `
             <div class="limitup-container" style="padding: 0;">
-                <div class="limitup-table-wrapper" style="overflow-x: auto;">
+                <div style="font-size: 0.72rem; color: var(--text-dimmed); padding: 8px 12px; border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.1); display: flex; justify-content: space-between;">
+                    <span>기준 거래일: <strong>${formatDateStr(dateStr)}</strong></span>
+                    <span>총 <strong>${data.length}</strong>개 종목</span>
+                </div>
+                <div class="limitup-table-wrapper" style="overflow-x: auto; max-height: 400px;">
                     <table class="limitup-table" style="width: 100%; border-collapse: collapse;">
                       <thead>
-                        <tr style="border-bottom: 1px solid var(--border-color);">
-                          <th style="text-align: center; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">날짜</th>
-                          <th style="text-align: left; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">종목명</th>
-                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">전일 종가</th>
-                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">오늘 시가</th>
-                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">오늘 고가</th>
-                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">오늘 종가</th>
-                          <th style="text-align: center; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">시가대비 고가</th>
-                          <th style="text-align: center; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">전일비 고가</th>
-                          <th style="text-align: right; padding: 12px 10px; color: var(--text-muted); font-size: 0.78rem;">거래량</th>
+                        <tr style="border-bottom: 1px solid var(--border-color); position: sticky; top: 0; background: var(--bg-secondary); z-index:2;">
+                          <th style="text-align: center; padding: 8px 6px; color: var(--text-muted); font-size: 0.74rem; width:35px;">순위</th>
+                          <th style="text-align: left; padding: 8px 6px; color: var(--text-muted); font-size: 0.74rem;">종목명</th>
+                          <th style="text-align: right; padding: 8px 6px; color: var(--text-muted); font-size: 0.74rem; width:70px;">전일종가</th>
+                          <th style="text-align: right; padding: 8px 6px; color: var(--text-muted); font-size: 0.74rem; width:70px;">오늘고가</th>
+                          <th style="text-align: center; padding: 8px 6px; color: var(--text-muted); font-size: 0.74rem; width:75px;">시가대비고</th>
+                          <th style="text-align: center; padding: 8px 6px; color: var(--text-muted); font-size: 0.74rem; width:75px;">전일비고</th>
+                          <th style="text-align: right; padding: 8px 6px; color: var(--text-muted); font-size: 0.74rem;">거래량</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1360,24 +1995,41 @@ const initAnalysisTab = () => {
 
         lucide.createIcons();
 
-        // Row click handler to load stock chart
-        resultContainer.querySelectorAll(".limitup-row").forEach(row => {
+        // Row click handler to load stock chart in right column
+        resultContainer.querySelectorAll(".main-analysis-row").forEach(row => {
             row.addEventListener("click", () => {
+                resultContainer.querySelectorAll(".main-analysis-row").forEach(r => r.classList.remove("active-row"));
+                row.classList.add("active-row");
+
                 const code = row.dataset.code;
-                const dashTabBtn = document.querySelector('.tab-btn[data-tab="dashboard"]');
-                if (dashTabBtn) dashTabBtn.click();
                 loadActiveStock(code);
             });
         });
+
+        // Automatically load the first stock in the list on initial load
+        if (!hasLoadedInitialStock && data.length > 0) {
+            hasLoadedInitialStock = true;
+            const firstStockCode = data[0].code;
+            const firstRow = resultContainer.querySelector(".main-analysis-row");
+            if (firstRow) firstRow.classList.add("active-row");
+            loadActiveStock(firstStockCode);
+        }
     };
 
-    // CSV (엑셀) 내보내기 구현
     const exportToCSV = () => {
+        if (mainAnalysisData.length === 0) {
+            alert("다운로드할 데이터가 없습니다.");
+            return;
+        }
+
+        const dates = [...new Set(mainAnalysisData.map(row => row.date))].sort((a, b) => b.localeCompare(a));
+        const latestDate = dates[0];
+        const latestDayData = mainAnalysisData.filter(row => row.date === latestDate);
+
         const refType = refSelect.value;
         const threshold = parseFloat(pctInput.value) || activeFilterPct;
 
-        // 현재 필터링된 데이터 구하기
-        const filtered = allAnalysisData.filter(row => {
+        const filtered = latestDayData.filter(row => {
             const open = parseFloat(row.open_price) || 0;
             const high = parseFloat(row.high_price) || 0;
             const prevClose = parseFloat(row.prev_close_price) || 0;
@@ -1396,20 +2048,18 @@ const initAnalysisTab = () => {
             return;
         }
 
-        // CSV 헤더 설정
         const headers = ["날짜", "종목코드", "종목명", "전일종가", "오늘시가", "오늘고가", "오늘종가", "시가대비고가비율(%)", "전일종가대비고가비율(%)", "오늘거래량"];
         
-        // CSV 로우 설정
         const csvRows = [
-            "\uFEFF" + headers.join(","), // UTF-8 BOM 추가하여 한글 깨짐 방지
+            "\uFEFF" + headers.join(","),
             ...filtered.map(row => {
                 const openToHigh = (((row.high_price - row.open_price) / row.open_price) * 100).toFixed(2);
                 const closeToHigh = (((row.high_price - row.prev_close_price) / row.prev_close_price) * 100).toFixed(2);
                 
                 return [
                     row.date,
-                    `"${row.code}"`, // 종목코드 자릿수 유지를 위한 텍스트 처리
-                    `"${row.name.replace(/"/g, '""')}"`, // 쉼표 대비 처리
+                    `"${row.code}"`,
+                    `"${row.name.replace(/"/g, '""')}"`,
                     Math.round(row.prev_close_price),
                     Math.round(row.open_price),
                     Math.round(row.high_price),
@@ -1426,20 +2076,17 @@ const initAnalysisTab = () => {
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
         
-        const todayStr = new Date().toISOString().substring(0, 10).replace(/-/g, "");
         link.setAttribute("href", url);
-        link.setAttribute("download", `gainer_analysis_results_${todayStr}.csv`);
+        link.setAttribute("download", `yesterday_gainers_today_flow_${latestDate}.csv`);
         link.style.visibility = "hidden";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
 
-    // 이벤트 리스너 바인딩
     refSelect.addEventListener("change", applyFiltersAndRender);
     
     pctInput.addEventListener("input", () => {
-        // 커스텀 입력 시 퀵 버튼의 active 해제
         pctBtns.forEach(btn => btn.classList.remove("active"));
         applyFiltersAndRender();
     });
@@ -1449,18 +2096,14 @@ const initAnalysisTab = () => {
             pctBtns.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             activeFilterPct = parseFloat(btn.dataset.pct);
-            pctInput.value = ""; // 커스텀 입력창 비우기
+            pctInput.value = "";
             applyFiltersAndRender();
         });
     });
 
     exportBtn.addEventListener("click", exportToCSV);
 
-    if (analysisTabBtn) {
-        analysisTabBtn.addEventListener("click", () => {
-            queryGainerResults();
-        });
-    }
+    queryMainGainerResults();
 };
 
 // ==========================================
@@ -1486,15 +2129,19 @@ document.addEventListener("DOMContentLoaded", () => {
     initSchedulerMonitor();
     loadSchedulerStatus();
     initLimitUpsTab();
-    initAnalysisTab();
+    initSearchTab();
+    initMainAnalysisWidget();
 
-    // Load daily limit up stocks list by default on startup
-    loadLimitUpStocks();
+    // Load daily limit up stocks list by default on startup (which initializes chart load)
+    // Removed duplicate loadLimitUpStocks to let initMainAnalysisWidget handle first stock loading
 });
 
 // Resize handler to make the chart responsive
 window.addEventListener("resize", () => {
     if (currentActiveStock && document.getElementById("tab-dashboard").style.display !== "none") {
         renderPriceChart(currentActiveStock);
+    }
+    if (currentSearchActiveStock && document.getElementById("tab-search").style.display !== "none") {
+        renderSearchPriceChart(currentSearchActiveStock);
     }
 });

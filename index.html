@@ -32,8 +32,8 @@
         <button class="tab-btn" data-tab="limitups">
           <i data-lucide="list-ordered"></i>급등주 리스트
         </button>
-        <button class="tab-btn" data-tab="analysis">
-          <i data-lucide="line-chart"></i>분석 데이터
+        <button class="tab-btn" data-tab="search">
+          <i data-lucide="search"></i>종목 검색
         </button>
       </nav>
       <!-- Settings and Actions -->
@@ -67,68 +67,89 @@
     <!-- Main Dashboard Section -->
     <main id="tab-dashboard" class="dashboard-grid tab-content">
       
-      <!-- Left Sidebar: Search & Quick Access -->
-      <section class="sidebar-panel">
+      <!-- Left Column: Yesterday's Gainers Analysis & Filters (Wider area) -->
+      <section class="analysis-panel">
+        <div class="analysis-header-box" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 16px 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); backdrop-filter: blur(20px);">
+          <h2 class="panel-title" style="margin: 0; display: flex; align-items: center; gap: 8px; font-size: 1.1rem;">
+            <i data-lucide="line-chart" style="color: var(--color-accent); width: 20px; height: 20px;"></i>
+            전일 급등주 당일 흐름 모니터링
+          </h2>
+        </div>
         
-        <!-- Search Widget -->
-        <div class="search-box">
-          <h2 class="panel-title">주식 종목 검색</h2>
-          <div class="search-controls">
-            <div class="search-input-wrapper">
-              <i data-lucide="search" class="search-icon"></i>
-              <input type="text" id="stock-search-input" class="search-input" placeholder="종목 코드(6자리) 또는 이름 입력..." autocomplete="off">
-              <!-- Autocomplete list -->
-              <div id="suggestions-container" class="suggestions-list"></div>
+        <!-- Filter controls inside Main page -->
+        <div class="analysis-filters-box" style="background: var(--bg-card); padding: 14px 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); backdrop-filter: blur(20px); display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">상승 기준:</span>
+              <select id="main-analysis-ref-select" class="search-input" style="width: auto; padding: 4px 8px; height: 30px; font-size: 0.78rem; background: rgba(0, 0, 0, 0.25);">
+                <option value="open">시가 대비 최고가 (Open to High)</option>
+                <option value="close">전일 종가 대비 최고가 (Close to High)</option>
+              </select>
             </div>
-            <!-- Date Input -->
-            <div class="date-input-wrapper">
-              <i data-lucide="calendar" class="date-icon"></i>
-              <input type="date" id="stock-search-date" class="date-input">
-            </div>
-            <!-- Search Button -->
-            <button id="stock-search-submit-btn" class="btn btn-primary search-submit-btn">
-              <i data-lucide="search"></i>조회하기
+            
+            <button id="main-analysis-export-btn" class="btn btn-primary" style="font-size: 0.75rem; padding: 6px 12px; height: 30px; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, var(--color-accent) 0%, #a29bfe 100%); border: none;">
+              <i data-lucide="download" style="width: 12px; height: 12px;"></i>엑셀 다운로드
             </button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">상승률:</span>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-secondary main-filter-pct-btn active" data-pct="0" style="padding: 3px 8px; font-size: 0.72rem; height: 26px;">전체</button>
+              <button class="btn btn-secondary main-filter-pct-btn" data-pct="3" style="padding: 3px 8px; font-size: 0.72rem; height: 26px;">3%+</button>
+              <button class="btn btn-secondary main-filter-pct-btn" data-pct="5" style="padding: 3px 8px; font-size: 0.72rem; height: 26px;">5%+</button>
+              <button class="btn btn-secondary main-filter-pct-btn" data-pct="10" style="padding: 3px 8px; font-size: 0.72rem; height: 26px;">10%+</button>
+            </div>
+            <div style="position: relative; display: flex; align-items: center; margin-left: 4px;">
+              <input type="number" id="main-analysis-pct-input" class="search-input" placeholder="직접 입력" style="width: 70px; padding: 4px 6px; height: 26px; font-size: 0.75rem; text-align: center; background: rgba(0, 0, 0, 0.25);" min="0" step="0.5">
+              <span style="position: absolute; right: 6px; font-size: 0.7rem; color: var(--text-dimmed);">%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Analysis Result Table Container -->
+        <div id="main-analysis-result-container" class="stock-card" style="min-height: 250px; padding: 0;">
+          <div class="stock-card-loading" style="padding: 40px 20px; text-align: center;">
+            <div class="spinner"></div>
+            <p style="color: var(--text-muted); margin-top: 8px;">분석 데이터를 불러오는 중...</p>
           </div>
         </div>
       </section>
 
-      <!-- Right Main Content Panel -->
+      <!-- Right Column: Active Stock Details & Chart -->
       <section class="main-content">
-        
         <!-- Stock Details Card -->
         <div id="stock-detail-card" class="stock-card">
           <!-- Populated dynamically by JS -->
           <div class="stock-card-loading">
             <div class="spinner"></div>
-            <p style="color: var(--text-muted);">실시간 주식 시세를 가져오는 중...</p>
+            <p style="color: var(--text-muted);">종목을 선택하거나 검색해 주세요.</p>
           </div>
         </div>
 
         <!-- Price Chart Section -->
         <div class="chart-box">
           <div class="chart-header">
-            <h2 class="panel-title">
-              <i data-lucide="activity" style="display:inline; width:16px; height:16px; margin-right:6px; vertical-align:middle;"></i>당일 시세 트렌드
+            <h2 class="panel-title" style="font-size: 0.9rem;">
+              <i data-lucide="activity" style="display:inline; width:14px; height:14px; margin-right:4px; vertical-align:middle;"></i>당일 시세 트렌드
             </h2>
-            <span class="chart-period">09:00 - 15:30</span>
+            <span class="chart-period" style="font-size: 0.75rem;">09:00 - 15:30</span>
           </div>
           
-          <div class="chart-canvas-wrapper">
+          <div class="chart-canvas-wrapper" style="height: 180px;">
             <!-- Tooltip -->
             <div id="chart-tooltip" class="chart-tooltip">
               <div class="tooltip-time">10:30</div>
               <div class="tooltip-price">78,500원</div>
             </div>
 
-            <svg id="stock-chart-svg" class="chart-svg">
+            <svg id="stock-chart-svg" class="chart-svg" style="height: 100%;">
               <defs>
                 <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.3"></stop>
                   <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0.0"></stop>
                 </linearGradient>
               </defs>
-              <!-- Grid and line groups created by JS -->
               <g id="chart-grid-group"></g>
               <path id="chart-area-path" class="chart-area-fill" d=""></path>
               <path id="chart-line-path" class="chart-line" d=""></path>
@@ -137,7 +158,6 @@
             </svg>
           </div>
         </div>
-
       </section>
     </main>
 
@@ -165,63 +185,97 @@
       </div>
     </div>
 
-    <!-- Analysis Tab -->
-    <div id="tab-analysis" class="tab-content" style="display: none; flex-direction: column; gap: 20px; width: 100%;">
-      <!-- Analysis Header Box -->
-      <div class="analysis-header-box" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 16px 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); backdrop-filter: blur(20px); flex-wrap: wrap; gap: 16px;">
-        <div class="analysis-header-title">
+    <!-- Search Tab [NEW] -->
+    <div id="tab-search" class="tab-content" style="display: none; flex-direction: column; gap: 20px; width: 100%;">
+      <!-- Search Header Box -->
+      <div class="search-header-box" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 16px 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); backdrop-filter: blur(20px); flex-wrap: wrap; gap: 16px;">
+        <div class="search-header-title">
           <h2 class="panel-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
-            <i data-lucide="line-chart" style="color: var(--color-accent); width: 22px; height: 22px;"></i>
-            전일 급등주 당일 분석 데이터
+            <i data-lucide="search" style="color: var(--color-accent); width: 22px; height: 22px;"></i>
+            개별 종목 검색 및 분석
           </h2>
         </div>
         <div style="font-size: 0.82rem; color: var(--text-muted);">
-          전일 20% 이상 급등했던 종목들의 오늘 성적표 및 분석 데이터입니다.
+          원하는 종목코드(6자리) 또는 종목명을 입력하여 1분봉 실시간 시세 트렌드를 확인하세요.
         </div>
       </div>
       
-      <!-- Filter controls -->
-      <div class="analysis-filters-box" style="background: var(--bg-card); padding: 18px 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); backdrop-filter: blur(20px); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
-        <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-          <!-- Filter Reference Selector -->
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">분석 기준:</span>
-            <select id="analysis-ref-select" class="search-input" style="width: auto; padding: 6px 12px; height: 34px; font-size: 0.82rem; background: rgba(0, 0, 0, 0.25);">
-              <option value="open">시가 대비 최고가 (Open to High)</option>
-              <option value="close">전일 종가 대비 최고가 (Close to High)</option>
-            </select>
+      <!-- Search Input Widget & Recently Searched List -->
+      <div class="search-widget-box" style="background: var(--bg-card); padding: 20px 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); backdrop-filter: blur(20px); display: flex; flex-direction: column; gap: 16px;">
+        <!-- Search Input Bar -->
+        <div class="search-controls" style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; width: 100%;">
+          <div class="search-input-wrapper" style="flex: 2; min-width: 250px;">
+            <i data-lucide="search" class="search-icon"></i>
+            <input type="text" id="search-tab-input" class="search-input" placeholder="종목 코드(6자리) 또는 이름 입력..." autocomplete="off" style="height: 42px; font-size: 0.95rem; padding-left: 42px;">
+            <!-- Autocomplete suggestions container -->
+            <div id="search-suggestions-container" class="suggestions-list" style="top: 45px;"></div>
           </div>
-          
-          <!-- Percentage filter options -->
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">상승률 기준:</span>
-            <div style="display: flex; gap: 4px;">
-              <button class="btn btn-secondary filter-pct-btn active" data-pct="0" style="padding: 4px 10px; font-size: 0.75rem; height: 30px;">전체</button>
-              <button class="btn btn-secondary filter-pct-btn" data-pct="3" style="padding: 4px 10px; font-size: 0.75rem; height: 30px;">3%+</button>
-              <button class="btn btn-secondary filter-pct-btn" data-pct="5" style="padding: 4px 10px; font-size: 0.75rem; height: 30px;">5%+</button>
-              <button class="btn btn-secondary filter-pct-btn" data-pct="10" style="padding: 4px 10px; font-size: 0.75rem; height: 30px;">10%+</button>
-            </div>
-            
-            <!-- Custom percentage input -->
-            <div style="position: relative; display: flex; align-items: center; margin-left: 6px;">
-              <input type="number" id="analysis-pct-input" class="search-input" placeholder="직접 입력" style="width: 80px; padding: 6px 8px; height: 30px; font-size: 0.8rem; text-align: center; background: rgba(0, 0, 0, 0.25);" min="0" step="0.5">
-              <span style="position: absolute; right: 8px; font-size: 0.75rem; color: var(--text-dimmed);">%</span>
-            </div>
+          <!-- Date Input -->
+          <div class="date-input-wrapper" style="flex: 1; min-width: 140px;">
+            <i data-lucide="calendar" class="date-icon" style="left: 12px;"></i>
+            <input type="date" id="search-tab-date" class="date-input" style="height: 42px; padding-left: 36px; font-size: 0.9rem;">
           </div>
+          <!-- Search Submit Button -->
+          <button id="search-tab-submit-btn" class="btn btn-primary search-submit-btn" style="height: 42px; padding: 0 24px; display: inline-flex; align-items: center; gap: 8px;">
+            <i data-lucide="search" style="width: 16px; height: 16px;"></i>조회하기
+          </button>
         </div>
-        
-        <!-- Export button -->
-        <button id="analysis-export-btn" class="btn btn-primary" style="font-size: 0.8rem; padding: 8px 16px; height: 38px; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, var(--color-accent) 0%, #a29bfe 100%); border: none;">
-          <i data-lucide="download" style="width: 14px; height: 14px;"></i>엑셀(CSV) 다운로드
-        </button>
+
+        <!-- Search History (chips) -->
+        <div id="search-history-box" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.85rem; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 12px; display: none;">
+          <span style="color: var(--text-dimmed); font-weight: 500;">최근 검색:</span>
+          <div id="search-history-chips" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <!-- History chips rendered dynamically -->
+          </div>
+          <button id="clear-all-history-btn" style="background: none; border: none; color: var(--color-up); font-size: 0.75rem; cursor: pointer; padding: 2px 6px; margin-left: auto;">전체 삭제</button>
+        </div>
       </div>
 
-      <!-- Analysis Result Container -->
-      <div id="analysis-result-container" class="stock-card" style="min-height: 200px; padding: 0;">
-        <div class="stock-card-loading" style="padding: 60px 20px; text-align: center;">
-          <div class="spinner"></div>
-          <p style="color: var(--text-muted); margin-top: 12px;">분석 데이터를 불러오는 중...</p>
-        </div>
+      <!-- Search Detail & Chart split grid (same look as dashboard, but separate IDs) -->
+      <div class="dashboard-grid" style="grid-template-columns: 1fr 1.6fr; width: 100%;">
+        <!-- Left: Search Stock Details Card -->
+        <section class="main-content" style="width: 100%;">
+          <div id="search-detail-card" class="stock-card" style="width: 100%; min-height: 380px;">
+            <div class="stock-card-loading" style="padding: 100px 20px;">
+              <div class="spinner"></div>
+              <p style="color: var(--text-muted); margin-top: 12px;">종목을 검색하여 1분봉 시세와 정보를 확인하세요.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: Search Stock Chart Section -->
+        <section class="main-content" style="width: 100%;">
+          <div class="chart-box" style="width: 100%; min-height: 380px;">
+            <div class="chart-header">
+              <h2 class="panel-title" style="font-size: 0.95rem;">
+                <i data-lucide="activity" style="display:inline; width:16px; height:16px; margin-right:6px; vertical-align:middle; color: var(--color-accent);"></i>시세 흐름 차트
+              </h2>
+              <span class="chart-period" style="font-size: 0.78rem;">09:00 - 15:30</span>
+            </div>
+            
+            <div class="chart-canvas-wrapper" style="height: 280px; position: relative;">
+              <!-- Tooltip -->
+              <div id="search-chart-tooltip" class="chart-tooltip">
+                <div class="tooltip-time">10:30</div>
+                <div class="tooltip-price">78,500원</div>
+              </div>
+
+              <svg id="search-chart-svg" class="chart-svg" style="height: 100%; width: 100%;">
+                <defs>
+                  <linearGradient id="search-chart-gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.3"></stop>
+                    <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0.0"></stop>
+                  </linearGradient>
+                </defs>
+                <g id="search-chart-grid-group"></g>
+                <path id="search-chart-area-path" class="chart-area-fill" d=""></path>
+                <path id="search-chart-line-path" class="chart-line" d=""></path>
+                <g id="search-chart-dots-group"></g>
+                <line id="search-chart-hover-line" class="chart-hover-line" x1="0" y1="0" x2="0" y2="0" style="display:none;"></line>
+              </svg>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 
