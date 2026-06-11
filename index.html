@@ -78,8 +78,8 @@
         
         <!-- Filter controls inside Main page -->
         <div class="analysis-filters-box" style="background: var(--bg-card); padding: 14px 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); backdrop-filter: blur(20px); display: flex; flex-direction: column; gap: 12px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-            <div style="display: flex; align-items: center; gap: 6px;">
+          <div class="filter-row-top">
+            <div class="filter-select-group">
               <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">상승 기준:</span>
               <select id="main-analysis-ref-select" class="search-input" style="width: auto; padding: 4px 8px; height: 30px; font-size: 0.78rem; background: rgba(0, 0, 0, 0.25);">
                 <option value="open">시가 대비 최고가 (Open to High)</option>
@@ -92,7 +92,7 @@
             </button>
           </div>
 
-          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <div class="filter-row-bottom">
             <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">상승률:</span>
             <div style="display: flex; gap: 4px;">
               <button class="btn btn-secondary main-filter-pct-btn active" data-pct="0" style="padding: 3px 8px; font-size: 0.72rem; height: 26px;">전체</button>
@@ -121,9 +121,9 @@
         <!-- Stock Details Card -->
         <div id="stock-detail-card" class="stock-card">
           <!-- Populated dynamically by JS -->
-          <div class="stock-card-loading">
-            <div class="spinner"></div>
-            <p style="color: var(--text-muted);">종목을 선택하거나 검색해 주세요.</p>
+          <div class="stock-card-placeholder" style="padding: 40px 20px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+            <i data-lucide="info" style="width: 28px; height: 28px; color: var(--text-dimmed);"></i>
+            <p style="font-size: 0.88rem; margin: 0;">왼쪽 급등주 목록에서 종목을 선택해 주세요.</p>
           </div>
         </div>
 
@@ -236,9 +236,9 @@
         <!-- Left: Search Stock Details Card -->
         <section class="main-content" style="width: 100%;">
           <div id="search-detail-card" class="stock-card" style="width: 100%; min-height: 380px;">
-            <div class="stock-card-loading" style="padding: 100px 20px;">
-              <div class="spinner"></div>
-              <p style="color: var(--text-muted); margin-top: 12px;">종목을 검색하여 1분봉 시세와 정보를 확인하세요.</p>
+            <div class="stock-card-placeholder" style="padding: 100px 20px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+              <i data-lucide="search" style="width: 36px; height: 36px; color: var(--text-dimmed);"></i>
+              <p style="font-size: 0.95rem; margin: 0;">종목을 검색하여 1분봉 시세와 정보를 확인하세요.</p>
             </div>
           </div>
         </section>

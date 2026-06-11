@@ -185,7 +185,14 @@ const loadLimitUpStocks = async () => {
         const separator = url.includes("?") ? "&" : "?";
         const fetchUrl = `${url}${separator}type=limitup`;
 
-        const response = await fetch(fetchUrl);
+        const headers = {};
+        if (appSettings.anonKey.trim()) {
+            headers["Authorization"] = `Bearer ${appSettings.anonKey.trim()}`;
+        }
+
+        const response = await fetch(fetchUrl, {
+            headers: headers
+        });
         if (!response.ok) {
             const errText = await response.text();
             throw new Error(`급등주 조회 실패 (${response.status}): ${errText}`);
@@ -914,8 +921,15 @@ const loadSchedulerStatus = async () => {
     const separator = url.includes("?") ? "&" : "?";
     const fetchUrl = `${url}${separator}type=sync_logs`;
 
+    const headers = {};
+    if (appSettings.anonKey.trim()) {
+        headers["Authorization"] = `Bearer ${appSettings.anonKey.trim()}`;
+    }
+
     try {
-        const response = await fetch(fetchUrl);
+        const response = await fetch(fetchUrl, {
+            headers: headers
+        });
         if (!response.ok) throw new Error("API 통신 실패");
         const result = await response.json();
 
@@ -1037,8 +1051,15 @@ const initLimitUpsTab = () => {
         const separator = url.includes("?") ? "&" : "?";
         const fetchUrl = `${url}${separator}type=limitup&date=all`;
 
+        const headers = {};
+        if (appSettings.anonKey.trim()) {
+            headers["Authorization"] = `Bearer ${appSettings.anonKey.trim()}`;
+        }
+
         try {
-            const response = await fetch(fetchUrl);
+            const response = await fetch(fetchUrl, {
+                headers: headers
+            });
             if (!response.ok) throw new Error("API 통신에 실패했습니다.");
             
             const result = await response.json();
@@ -1842,8 +1863,15 @@ const initMainAnalysisWidget = () => {
         const separator = url.includes("?") ? "&" : "?";
         const fetchUrl = `${url}${separator}type=gainer_results`;
 
+        const headers = {};
+        if (appSettings.anonKey.trim()) {
+            headers["Authorization"] = `Bearer ${appSettings.anonKey.trim()}`;
+        }
+
         try {
-            const response = await fetch(fetchUrl);
+            const response = await fetch(fetchUrl, {
+                headers: headers
+            });
             if (!response.ok) throw new Error("API 통신에 실패했습니다.");
             const result = await response.json();
             if (result.status !== "success") {
@@ -1879,10 +1907,6 @@ const initMainAnalysisWidget = () => {
                 </div>
             `;
             lucide.createIcons();
-            if (!hasLoadedInitialStock) {
-                loadActiveStock("005930");
-                hasLoadedInitialStock = true;
-            }
             return;
         }
 
